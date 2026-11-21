@@ -71,10 +71,18 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 
 - `tools/prepare_equipment_assets.py` extrae cinco cuerpos base limpios de la composicion original y genera iconos y capas provisionales transparentes para vista previa y combate.
 - Cada personaje conserva un `appearance_id` independiente de su profesion, inventario con cantidades y ocho slots persistidos mediante IDs estables.
-- Los 22 objetos iniciales son Resources externos con requisitos, bonificaciones, icono y variantes visuales por modelo corporal.
+- Los 26 objetos iniciales son Resources externos con requisitos, bonificaciones, icono y variantes visuales por modelo corporal.
 - La pestaña **Equipo** permite equipar y desequipar con mouse o tactil, recalcula las estadisticas desde sus fuentes y guarda el cambio automaticamente.
 - Las capas de casco, torso, manos, pies, arma y escudo se muestran sobre los sprites de combate; armas, escudos y capas cambian su orden segun la orientacion.
-- El arte inicial de equipo usa una pose corporal estatica coherente sobre las animaciones existentes. Todavia faltan overlays dibujados cuadro por cuadro para cada direccion y estado.
+- Las clases que aun no tienen una hoja modular usan capas estaticas coherentes. El guerrero ya dispone de recursos direccionales y anclajes por estado y fotograma.
+
+### Guerrero modular de hierro
+
+- `tools/extract_warrior_equipment.py` procesa la hoja original de 1536x1024 y elimina textos, paneles, fondos y fragmentos vecinos.
+- `WarriorVisual` reemplaza el antiguo guerrero horneado con una base sin equipo y animaciones de frente, espalda, izquierda y derecha.
+- La hoja aporta tres cuadros para idle, caminar, ataque y derrota, y dos para daño; las habilidades fisicas reutilizan el ataque porque no hay una secuencia separada fiable.
+- Casco (+3 DEF), armadura (+10 DEF), botas (+2 DEF), espada (+8 ATQ) y escudo (+5 DEF) usan texturas direccionales independientes.
+- Los objetos siguen cabeza, torso, pies y manos mediante offsets configurados en sus Resources. La vista previa permite comprobar el resultado sin entrar al combate.
 
 ### Progresión
 

@@ -43,6 +43,8 @@ const EQUIPMENT_PATHS: Array[String] = [
 	"res://data/equipment/white_hood.tres", "res://data/equipment/cloth_boots.tres",
 	"res://data/equipment/iron_daggers.tres", "res://data/equipment/light_armor.tres",
 	"res://data/equipment/dark_hood.tres", "res://data/equipment/explorer_boots.tres",
+	"res://data/equipment/iron_helmet.tres", "res://data/equipment/iron_armor.tres",
+	"res://data/equipment/iron_boots.tres", "res://data/equipment/iron_shield.tres",
 ]
 
 var races: Dictionary = {}

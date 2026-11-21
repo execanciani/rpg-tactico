@@ -5,7 +5,7 @@ const MAX_CHARACTERS := 3
 const MIN_NAME_LENGTH := 3
 const MAX_NAME_LENGTH := 16
 const STARTER_ITEMS := {
-	"warrior": ["iron_sword", "wooden_shield", "leather_helmet", "leather_armor", "leather_boots"],
+	"warrior": ["iron_sword", "iron_shield", "iron_helmet", "iron_armor", "iron_boots"],
 	"mage": ["apprentice_staff", "arcane_robe", "cloth_hood", "cloth_gloves", "apprentice_sandals"],
 	"archer": ["wooden_bow", "leather_vest", "archer_gloves", "light_boots"],
 	"acolyte": ["ceremonial_staff", "healer_robe", "white_hood", "cloth_boots"],

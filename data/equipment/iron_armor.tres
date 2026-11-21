@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=8 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/armor/iron_armor_front.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/armor/iron_armor_preview.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/armor/iron_armor_front.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/armor/iron_armor_right.png" id="5"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/armor/iron_armor_back.png" id="6"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/armor/iron_armor_left.png" id="7"]
+[resource]
+script = ExtResource("1")
+item_id = "iron_armor"
+display_name = "Armadura de hierro"
+description = "Coraza articulada de hierro con ribetes dorados."
+slot = 1
+category = "armor"
+allowed_profession_ids = Array[String](["warrior"])
+derived_bonuses = {"physical_defense": 10}
+icon = ExtResource("2")
+body_model_id = "warrior"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")
+combat_variants = {"warrior:front": ExtResource("4"), "warrior:right": ExtResource("5"), "warrior:back": ExtResource("6"), "warrior:left": ExtResource("7")}
+combat_offsets = {"walk:front:0": Vector2(0, 1), "walk:front:1": Vector2(0, -1), "walk:right:1": Vector2(0, -1), "walk:left:1": Vector2(0, -1), "attack:right:2": Vector2(-7, 2), "attack:left:2": Vector2(7, 2), "death:front:1": Vector2(1, 7), "death:front:2": Vector2(7, 17)}

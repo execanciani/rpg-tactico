@@ -1,18 +1,23 @@
-[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=8 format=3]
 [ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/equipment/icons/iron_sword.png" id="2"]
-[ext_resource type="Texture2D" path="res://assets/equipment/preview/iron_sword.png" id="3"]
-[ext_resource type="Texture2D" path="res://assets/equipment/combat/iron_sword.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_front.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_preview.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_front.png" id="4"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_right.png" id="5"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_back.png" id="6"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_left.png" id="7"]
 [resource]
 script = ExtResource("1")
 item_id = "iron_sword"
 display_name = "Espada de hierro"
-description = "Hoja sencilla y equilibrada para combatientes novatos."
+description = "Hoja de hierro equilibrada para el guerrero."
 slot = 6
 category = "sword"
 allowed_profession_ids = Array[String](["warrior"])
-derived_bonuses = {"physical_attack": 4}
+derived_bonuses = {"physical_attack": 8}
 icon = ExtResource("2")
 body_model_id = "warrior"
 preview_visual = ExtResource("3")
 combat_visual = ExtResource("4")
+combat_variants = {"warrior:front": ExtResource("4"), "warrior:right": ExtResource("5"), "warrior:back": ExtResource("6"), "warrior:left": ExtResource("7")}
+combat_offsets = {"attack:front:0": Vector2(-1, 1), "attack:front:1": Vector2(2, 0), "attack:front:2": Vector2(6, -2), "attack:right:0": Vector2(0, 1), "attack:right:1": Vector2(4, 0), "attack:right:2": Vector2(7, -1), "attack:left:0": Vector2(0, 1), "attack:left:1": Vector2(-4, 0), "attack:left:2": Vector2(-7, -1), "attack:back:0": Vector2(1, 0), "attack:back:1": Vector2(-2, -1), "attack:back:2": Vector2(-4, 0)}

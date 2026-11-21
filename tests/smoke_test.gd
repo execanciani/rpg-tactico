@@ -136,38 +136,62 @@ func _test_grass_terrain_assets() -> void:
 func _test_equipment_system() -> void:
 	var source := load("res://assets/characters/base/base_characters.png") as Texture2D
 	_expect(source != null and source.get_size() == Vector2(1672, 941), "La composicion base de personajes no conserva sus dimensiones reales.")
+	var warrior_sheet := load("res://assets/characters/warrior/warrior_equipment_sheet.png") as Texture2D
+	_expect(warrior_sheet != null and warrior_sheet.get_size() == Vector2(1536, 1024), "La hoja de equipamiento del guerrero no conserva sus dimensiones reales.")
 	var profile := CampaignProfile.new()
 	profile.initialize_new()
 	var character := profile.create_character("equipment_test", "Equipo", "human", "warrior")
 	_expect(character != null and character.appearance_id == "warrior", "El personaje no conserva una apariencia independiente de su profesion futura.")
-	_expect(profile.catalog.equipment.size() == 22 and profile.catalog.appearances.size() == 5, "El catalogo de equipamiento o apariencias esta incompleto.")
+	_expect(profile.catalog.equipment.size() == 26 and profile.catalog.appearances.size() == 5, "El catalogo de equipamiento o apariencias esta incompleto.")
 	for body_id in ["warrior", "mage", "archer", "acolyte", "explorer"]:
 		var base := load("res://assets/characters/base/extracted/base_%s.png" % body_id) as Texture2D
 		_expect(base != null and base.get_size() == Vector2(256, 384), "La base extraida de %s falta o fue deformada." % body_id)
 		if base != null:
 			_expect(base.get_image().get_pixel(0, 0).a < 0.05, "La base %s conserva fondo en su esquina." % body_id)
+	for state in ["idle", "walk", "attack", "hurt", "death"]:
+		for direction in ["front", "right", "back", "left"]:
+			var frame := load("res://assets/characters/warrior/animations/%s/%s_00.png" % [state, direction]) as Texture2D
+			_expect(frame != null and frame.get_size() == Vector2(96, 96), "Falta la animacion base %s/%s del guerrero." % [state, direction])
+			if frame != null:
+				_expect(frame.get_image().get_pixel(0, 0).a < 0.05, "La animacion %s/%s conserva fondo." % [state, direction])
 	var race := profile.catalog.race(character.race_id)
 	var profession := profile.catalog.profession(character.profession_id)
 	var base_stats := StatCalculator.calculate(character, race, profession, profile.equipment_bonuses(character))
+	var bare_layers := EquipmentLayerVisual.new()
+	bare_layers.configure("warrior", [])
+	_expect(bare_layers.get_child_count() == 0, "El guerrero sin equipo conserva capas visuales ocultas.")
+	bare_layers.free()
 	_expect(character.item_quantity("iron_sword") == 1, "El kit inicial no ingreso al inventario.")
 	_expect(profile.equip_item(character.character_id, "iron_sword"), "No se pudo equipar una espada compatible.")
 	_expect(character.item_quantity("iron_sword") == 0 and str(character.equipped_items.get("main_hand", "")) == "iron_sword", "Equipar no traslado correctamente la espada al slot.")
 	var sword_stats := StatCalculator.calculate(character, race, profession, profile.equipment_bonuses(character))
-	_expect(int(sword_stats.derived.physical_attack) == int(base_stats.derived.physical_attack) + 4, "La espada no aplica exactamente una vez su ataque fisico.")
+	_expect(int(sword_stats.derived.physical_attack) == int(base_stats.derived.physical_attack) + 8, "La espada no aplica exactamente una vez su ataque fisico.")
 	_expect(not profile.equip_item(character.character_id, "iron_sword"), "Se pudo duplicar una espada ya equipada sin inventario.")
 	var repeated_stats := StatCalculator.calculate(character, race, profession, profile.equipment_bonuses(character))
 	_expect(repeated_stats == sword_stats, "Reequipar acumulo bonificaciones incorrectamente.")
 	_expect(not profile.equip_item(character.character_id, "apprentice_staff"), "Un guerrero equipo un objeto incompatible o inexistente en su inventario.")
-	for item_id in ["wooden_shield", "leather_helmet", "leather_armor", "leather_boots"]:
+	for item_id in ["iron_shield", "iron_helmet", "iron_armor", "iron_boots"]:
 		_expect(profile.equip_item(character.character_id, item_id), "No se pudo equipar %s." % item_id)
+	var full_stats := StatCalculator.calculate(character, race, profession, profile.equipment_bonuses(character))
+	_expect(int(full_stats.derived.physical_defense) == int(base_stats.derived.physical_defense) + 20, "El conjunto de hierro no suma exactamente 20 de defensa fisica.")
 	var unit := (load("res://data/archetypes/hero_warrior.tres") as UnitArchetype).instantiate(character.character_id, UnitData.Team.HEROES, Vector2i.ZERO)
 	profile.apply_to_hero(unit)
 	_expect(unit.equipment_ids.size() == 5 and unit.physical_attack == int(sword_stats.derived.physical_attack), "El combate no recibio el equipo o recalculo mal las estadisticas.")
+	var warrior_view := TacticalUnit.new()
+	warrior_view.setup(unit, Vector2.ZERO)
+	_expect(warrior_view.mage_visual is WarriorVisual, "El guerrero no utiliza el componente WarriorVisual reutilizable.")
+	_expect(warrior_view.equipment_visual != null and warrior_view.equipment_visual.get_child_count() == 5, "El guerrero tactico no reconstruyo sus capas equipadas.")
+	warrior_view.free()
 	var layers := EquipmentLayerVisual.new()
 	layers.configure(unit.body_model_id, unit.equipment_items)
 	_expect(layers.get_child_count() == 5, "Las capas visuales de combate no reflejan todos los objetos equipados.")
+	var front_sword := (layers.layer_sprites.get("main_hand") as Sprite2D).texture
 	layers.set_facing("back")
 	_expect((layers.layer_sprites.get("main_hand") as Sprite2D).z_index < 0, "El arma no cambia de orden al mirar hacia atras.")
+	_expect((layers.layer_sprites.get("main_hand") as Sprite2D).texture != front_sword, "La espada no cambia a su recurso de espalda.")
+	layers.set_facing("front")
+	layers.sync_pose(&"attack_front", 2)
+	_expect((layers.layer_sprites.get("main_hand") as Sprite2D).position == Vector2(6, -2), "El arma no sigue el anclaje del fotograma de ataque.")
 	layers.free()
 	var snapshot := profile.make_snapshot()
 	var restored := CampaignProfile.new()

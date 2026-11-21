@@ -23,6 +23,7 @@ const SLOT_KEYS: Array[String] = [
 # Future race/body variants can be added without changing item IDs or saves.
 @export var preview_variants: Dictionary = {}
 @export var combat_variants: Dictionary = {}
+@export var combat_offsets: Dictionary = {}
 
 func slot_key() -> String:
 	return SLOT_KEYS[slot]
@@ -43,4 +44,16 @@ func visual_for(requested_body_model: String, combat := false) -> Texture2D:
 	if requested_body_model != body_model_id:
 		return null
 	return combat_visual if combat else preview_visual
+
+func combat_visual_for(requested_body_model: String, direction: String) -> Texture2D:
+	var directional_key := "%s:%s" % [requested_body_model, direction]
+	if combat_variants.has(directional_key):
+		return combat_variants[directional_key] as Texture2D
+	return visual_for(requested_body_model, true)
+
+func combat_offset(state: String, direction: String, frame: int) -> Vector2:
+	for key in ["%s:%s:%d" % [state, direction, frame], "%s:%s" % [state, direction], direction, "default"]:
+		if combat_offsets.has(key):
+			return combat_offsets[key] as Vector2
+	return Vector2.ZERO
 

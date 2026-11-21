@@ -5,6 +5,7 @@ signal movement_finished
 
 const MAGE_VISUAL_SCENE := preload("res://scenes/presentation/mage_visual.tscn")
 const CLASS_VISUAL_SCENE := preload("res://scenes/presentation/class_visual.tscn")
+const WARRIOR_VISUAL_SCENE := preload("res://scenes/presentation/warrior_visual.tscn")
 
 var data: UnitData
 var is_selected := false
@@ -21,7 +22,9 @@ func setup(unit_data: UnitData, world_position: Vector2) -> void:
 		mage_visual = MAGE_VISUAL_SCENE.instantiate() as MageVisual
 	elif unit_data.team == UnitData.Team.HEROES:
 		var starter_art := _starter_visual_archetype()
-		if not starter_art.is_empty():
+		if starter_art == "warrior":
+			mage_visual = WARRIOR_VISUAL_SCENE.instantiate() as WarriorVisual
+		elif not starter_art.is_empty():
 			var visual := CLASS_VISUAL_SCENE.instantiate() as ClassVisual
 			visual.archetype = starter_art
 			mage_visual = visual
@@ -35,6 +38,8 @@ func setup(unit_data: UnitData, world_position: Vector2) -> void:
 		equipment_visual.scale = mage_visual.scale
 		add_child(equipment_visual)
 		refresh_equipment_visual()
+		mage_visual.frame_changed.connect(_sync_equipment_pose)
+		mage_visual.animation_changed.connect(_sync_equipment_pose)
 	queue_redraw()
 
 func set_selected(value: bool) -> void:
@@ -59,6 +64,11 @@ func refresh_equipment_visual() -> void:
 	equipment_visual.configure(data.body_model_id, data.equipment_items)
 	if mage_visual != null:
 		equipment_visual.set_facing(mage_visual.facing)
+		_sync_equipment_pose()
+
+func _sync_equipment_pose() -> void:
+	if equipment_visual != null and mage_visual != null:
+		equipment_visual.sync_pose(mage_visual.animation, mage_visual.frame)
 
 func animate_path(path: Array[Vector2i], grid: IsometricGrid) -> void:
 	if path.is_empty():
