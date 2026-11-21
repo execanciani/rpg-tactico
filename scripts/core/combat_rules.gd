@@ -5,6 +5,8 @@ static func grid_distance(origin: Vector2i, target: Vector2i) -> int:
 	return abs(origin.x - target.x) + abs(origin.y - target.y)
 
 static func can_basic_attack(attacker: UnitData, defender: UnitData, heights: Dictionary = {}, blocked: Dictionary = {}) -> bool:
+	if attacker == null or defender == null:
+		return false
 	return (
 		attacker.is_alive()
 		and defender.is_alive()
