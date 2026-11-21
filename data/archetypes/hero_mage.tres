@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="UnitArchetype" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/unit_archetype.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+archetype_id = "hero_mage"
+default_name = "Lyra"
+class_name_text = "Mago"
+max_hp = 32
+max_mp = 24
+physical_attack = 5
+magical_attack = 15
+physical_defense = 4
+magical_defense = 9
+speed = 7
+move_range = 4
+max_climb = 1
+basic_attack_range = 3
+basic_attack_damage_type = 1
+ability_paths = Array[String](["res://data/abilities/frost_shard.tres"])

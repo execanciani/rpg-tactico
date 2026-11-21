@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="UnitArchetype" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/unit_archetype.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+archetype_id = "enemy_guard"
+default_name = "Vigía rojo"
+class_name_text = "Guardia"
+max_hp = 40
+max_mp = 4
+physical_attack = 11
+magical_attack = 3
+physical_defense = 8
+magical_defense = 5
+speed = 5
+move_range = 4
+max_climb = 1
+basic_attack_range = 1

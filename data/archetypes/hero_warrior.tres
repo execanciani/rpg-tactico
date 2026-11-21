@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="UnitArchetype" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/unit_archetype.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+archetype_id = "hero_warrior"
+default_name = "Kael"
+class_name_text = "Guerrero"
+max_hp = 48
+max_mp = 8
+physical_attack = 14
+magical_attack = 4
+physical_defense = 10
+magical_defense = 6
+speed = 6
+move_range = 4
+max_climb = 1
+basic_attack_range = 1

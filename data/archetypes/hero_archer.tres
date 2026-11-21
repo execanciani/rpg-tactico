@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="UnitArchetype" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/unit_archetype.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+archetype_id = "hero_archer"
+default_name = "Orin"
+class_name_text = "Arquero"
+max_hp = 38
+max_mp = 12
+physical_attack = 12
+magical_attack = 3
+physical_defense = 6
+magical_defense = 5
+speed = 9
+move_range = 5
+max_climb = 2
+basic_attack_range = 4

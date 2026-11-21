@@ -1,0 +1,112 @@
+class_name BattleSimulator
+extends RefCounted
+
+const HERO_PATHS: Array[String] = [
+	"res://data/archetypes/hero_warrior.tres",
+	"res://data/archetypes/hero_mage.tres",
+	"res://data/archetypes/hero_archer.tres",
+]
+
+static func simulate_mission(mission: MissionData, maximum_rounds := 80) -> Dictionary:
+	var heroes: Array[UnitData] = []
+	var enemies: Array[UnitData] = []
+	for index in mini(HERO_PATHS.size(), mission.hero_positions.size()):
+		var archetype := load(HERO_PATHS[index]) as UnitArchetype
+		heroes.append(archetype.instantiate(archetype.archetype_id, UnitData.Team.HEROES, mission.hero_positions[index]))
+	for index in mini(mission.enemy_archetype_paths.size(), mission.enemy_positions.size()):
+		var archetype := load(mission.enemy_archetype_paths[index]) as UnitArchetype
+		enemies.append(archetype.instantiate("enemy_%02d" % index, UnitData.Team.ENEMIES, mission.enemy_positions[index]))
+	var heights := mission.height_map()
+	var blocked := mission.blocked_map()
+	var actions := 0
+	var completed_rounds := 0
+	for round_index in maximum_rounds:
+		completed_rounds = round_index + 1
+		actions += _run_team(heroes, enemies, heroes, enemies, heights, blocked)
+		if not enemies.any(func(unit: UnitData): return unit.is_alive()):
+			return {"finished": true, "winner": UnitData.Team.HEROES, "rounds": completed_rounds, "actions": actions}
+		actions += _run_team(enemies, heroes, heroes, enemies, heights, blocked)
+		if not heroes.any(func(unit: UnitData): return unit.is_alive()):
+			return {"finished": true, "winner": UnitData.Team.ENEMIES, "rounds": completed_rounds, "actions": actions}
+	return {"finished": false, "winner": -1, "rounds": completed_rounds, "actions": actions}
+
+static func _run_team(
+	team: Array[UnitData],
+	opponents: Array[UnitData],
+	heroes: Array[UnitData],
+	enemies: Array[UnitData],
+	heights: Dictionary,
+	blocked: Dictionary
+) -> int:
+	var actions := 0
+	for actor in team:
+		if not actor.is_alive():
+			continue
+		var target := _nearest_target(actor, opponents)
+		if target == null:
+			break
+		if not _can_attack(actor, target, heights, blocked):
+			var reachable := GridPathfinder.reachable_cells(
+				actor.grid_position, actor.move_range, IsometricGrid.MAP_SIZE,
+				blocked, _occupied(heroes, enemies), heights, actor.max_climb
+			)
+			var destination := _best_destination(actor, target, reachable, heights, blocked)
+			if destination != actor.grid_position:
+				actor.grid_position = destination
+				actor.elevation = int(heights.get(destination, 0))
+				actions += 1
+		target = _nearest_target(actor, opponents)
+		if target != null and _apply_best_attack(actor, target, heights, blocked):
+			actions += 1
+	return actions
+
+static func _apply_best_attack(actor: UnitData, target: UnitData, heights: Dictionary, blocked: Dictionary) -> bool:
+	for ability in actor.abilities:
+		if CombatRules.can_use_ability(actor, target, ability, heights, blocked):
+			actor.mp -= ability.mp_cost
+			CombatRules.apply_damage(target, CombatRules.ability_damage(actor, target, ability, heights))
+			return true
+	if CombatRules.can_basic_attack(actor, target, heights, blocked):
+		CombatRules.apply_damage(target, CombatRules.basic_attack_damage(actor, target, heights))
+		return true
+	return false
+
+static func _can_attack(actor: UnitData, target: UnitData, heights: Dictionary, blocked: Dictionary) -> bool:
+	if CombatRules.can_basic_attack(actor, target, heights, blocked):
+		return true
+	for ability in actor.abilities:
+		if CombatRules.can_use_ability(actor, target, ability, heights, blocked):
+			return true
+	return false
+
+static func _nearest_target(actor: UnitData, opponents: Array[UnitData]) -> UnitData:
+	var best: UnitData
+	var best_distance := 9999
+	for candidate in opponents:
+		if not candidate.is_alive():
+			continue
+		var distance := CombatRules.grid_distance(actor.grid_position, candidate.grid_position)
+		if distance < best_distance:
+			best = candidate
+			best_distance = distance
+	return best
+
+static func _best_destination(actor: UnitData, target: UnitData, reachable: Dictionary, heights: Dictionary, blocked: Dictionary) -> Vector2i:
+	var best := actor.grid_position
+	var best_score := 9999
+	for candidate_value in reachable.keys():
+		var candidate: Vector2i = candidate_value
+		var score := CombatRules.effective_distance(candidate, target.grid_position, heights) * 10
+		if not CombatRules.has_line_of_sight(candidate, target.grid_position, heights, blocked):
+			score += 7
+		if score < best_score:
+			best = candidate
+			best_score = score
+	return best
+
+static func _occupied(heroes: Array[UnitData], enemies: Array[UnitData]) -> Dictionary:
+	var result := {}
+	for unit in heroes + enemies:
+		if unit.is_alive():
+			result[unit.grid_position] = true
+	return result

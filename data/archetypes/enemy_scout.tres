@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="UnitArchetype" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/unit_archetype.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+archetype_id = "enemy_scout"
+default_name = "Rastreador"
+class_name_text = "Explorador"
+max_hp = 32
+max_mp = 6
+physical_attack = 10
+magical_attack = 3
+physical_defense = 5
+magical_defense = 4
+speed = 8
+move_range = 5
+max_climb = 2
+basic_attack_range = 3

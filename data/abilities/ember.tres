@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"ember"
+display_name = "Ascua rúnica"
+description = "Descarga mágica concentrada."
+mp_cost = 4
+range_cells = 3
+power = 5
+damage_type = 1
