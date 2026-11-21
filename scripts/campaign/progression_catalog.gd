@@ -26,15 +26,37 @@ const ABILITY_PATHS: Array[String] = [
 	"res://data/abilities/arcane_burst.tres", "res://data/abilities/astral_lance.tres",
 	"res://data/abilities/piercing_arrow.tres", "res://data/abilities/hamstring_shot.tres",
 ]
+const APPEARANCE_PATHS: Array[String] = [
+	"res://data/appearances/warrior.tres", "res://data/appearances/mage.tres",
+	"res://data/appearances/archer.tres", "res://data/appearances/acolyte.tres",
+	"res://data/appearances/explorer.tres",
+]
+const EQUIPMENT_PATHS: Array[String] = [
+	"res://data/equipment/iron_sword.tres", "res://data/equipment/wooden_shield.tres",
+	"res://data/equipment/leather_helmet.tres", "res://data/equipment/leather_armor.tres",
+	"res://data/equipment/leather_boots.tres", "res://data/equipment/apprentice_staff.tres",
+	"res://data/equipment/arcane_robe.tres", "res://data/equipment/cloth_hood.tres",
+	"res://data/equipment/cloth_gloves.tres", "res://data/equipment/apprentice_sandals.tres",
+	"res://data/equipment/wooden_bow.tres", "res://data/equipment/leather_vest.tres",
+	"res://data/equipment/archer_gloves.tres", "res://data/equipment/light_boots.tres",
+	"res://data/equipment/ceremonial_staff.tres", "res://data/equipment/healer_robe.tres",
+	"res://data/equipment/white_hood.tres", "res://data/equipment/cloth_boots.tres",
+	"res://data/equipment/iron_daggers.tres", "res://data/equipment/light_armor.tres",
+	"res://data/equipment/dark_hood.tres", "res://data/equipment/explorer_boots.tres",
+]
 
 var races: Dictionary = {}
 var professions: Dictionary = {}
 var abilities: Dictionary = {}
+var appearances: Dictionary = {}
+var equipment: Dictionary = {}
 
 func load_all() -> void:
 	races.clear()
 	professions.clear()
 	abilities.clear()
+	appearances.clear()
+	equipment.clear()
 	for path in RACE_PATHS:
 		var race := load(path) as RaceData
 		if race != null:
@@ -47,6 +69,14 @@ func load_all() -> void:
 		var ability := load(path) as AbilityData
 		if ability != null:
 			abilities[String(ability.id)] = ability
+	for path in APPEARANCE_PATHS:
+		var appearance := load(path) as AppearanceData
+		if appearance != null:
+			appearances[appearance.appearance_id] = appearance
+	for path in EQUIPMENT_PATHS:
+		var item := load(path) as EquipmentItemData
+		if item != null:
+			equipment[item.item_id] = item
 
 func race(race_id: String) -> RaceData:
 	return races.get(race_id) as RaceData
@@ -56,6 +86,12 @@ func profession(profession_id: String) -> ProfessionData:
 
 func ability(ability_id: String) -> AbilityData:
 	return abilities.get(ability_id) as AbilityData
+
+func appearance(appearance_id: String) -> AppearanceData:
+	return appearances.get(appearance_id) as AppearanceData
+
+func equipment_item(item_id: String) -> EquipmentItemData:
+	return equipment.get(item_id) as EquipmentItemData
 
 func abilities_for_character(character: CharacterProgress) -> Array[AbilityData]:
 	var result: Array[AbilityData] = []

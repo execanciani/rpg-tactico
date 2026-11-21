@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/arcane_robe.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/arcane_robe.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/arcane_robe.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "arcane_robe"
+display_name = "Tunica arcana"
+description = "Tela ritual que refuerza la concentracion magica."
+slot = 1
+category = "robe"
+allowed_profession_ids = Array[String](["mage"])
+derived_bonuses = {"magical_defense": 3, "max_mp": 8}
+icon = ExtResource("2")
+body_model_id = "mage"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

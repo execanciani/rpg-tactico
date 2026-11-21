@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/archer_gloves.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/archer_gloves.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/archer_gloves.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "archer_gloves"
+display_name = "Guantes de arquero"
+description = "Protegen los dedos y mejoran el control de la cuerda."
+slot = 3
+category = "gloves"
+allowed_profession_ids = Array[String](["archer"])
+derived_bonuses = {"accuracy": 3, "critical_chance": 1}
+icon = ExtResource("2")
+body_model_id = "archer"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

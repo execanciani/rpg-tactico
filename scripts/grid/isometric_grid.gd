@@ -10,6 +10,27 @@ enum Highlight { NONE, MOVE, ATTACK, SKILL }
 const MAP_SIZE := Vector2i(12, 12)
 const TILE_SIZE := Vector2(64.0, 32.0)
 const HEIGHT_STEP := 14.0
+const GRASS_TEXTURE_OFFSET := Vector2(36.0, 24.0)
+const GRASS_PLAIN_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/tilesets/grass/grass_plain_01.png"),
+	preload("res://assets/tilesets/grass/grass_plain_02.png"),
+	preload("res://assets/tilesets/grass/grass_plain_03.png"),
+	preload("res://assets/tilesets/grass/grass_plain_04.png"),
+]
+const GRASS_FLOWER_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/tilesets/grass/grass_flowers_01.png"),
+	preload("res://assets/tilesets/grass/grass_flowers_02.png"),
+	preload("res://assets/tilesets/grass/grass_flowers_03.png"),
+]
+const GRASS_STONE_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/tilesets/grass/grass_stones_01.png"),
+	preload("res://assets/tilesets/grass/grass_stones_02.png"),
+	preload("res://assets/tilesets/grass/grass_stones_03.png"),
+]
+const GRASS_TALL_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/tilesets/grass/grass_tall_01.png"),
+	preload("res://assets/tilesets/grass/grass_tall_02.png"),
+]
 
 var blocked_cells: Dictionary = {}
 var height_cells: Dictionary = {}
@@ -18,6 +39,7 @@ var selected_cell := Vector2i(-1, -1)
 var objective_cell := Vector2i(-1, -1)
 var preview_path: Array[Vector2i] = []
 var last_hovered_cell := Vector2i(-1, -1)
+var visual_seed := 0
 
 func _ready() -> void:
 	queue_redraw()
@@ -25,6 +47,7 @@ func _ready() -> void:
 func configure(mission: MissionData) -> void:
 	blocked_cells = mission.blocked_map()
 	height_cells = mission.height_map()
+	visual_seed = mission.mission_id.hash()
 	objective_cell = mission.objective_cell if mission.objective_type == MissionData.ObjectiveType.REACH_CELL else Vector2i(-1, -1)
 	highlighted_cells.clear()
 	preview_path.clear()
@@ -139,18 +162,23 @@ func _draw_cell(cell: Vector2i) -> void:
 	])
 	if elevation > 0:
 		var drop := Vector2(0, elevation * HEIGHT_STEP)
-		draw_colored_polygon(PackedVector2Array([diamond[3], diamond[2], diamond[2] + drop, diamond[3] + drop]), Color("#40564c"))
-		draw_colored_polygon(PackedVector2Array([diamond[2], diamond[1], diamond[1] + drop, diamond[2] + drop]), Color("#354841"))
+		# Modular side faces remain procedural so adjacent plateaus do not draw
+		# internal walls.  Their palette matches the extracted earthen blocks.
+		draw_colored_polygon(PackedVector2Array([diamond[3], diamond[2], diamond[2] + drop, diamond[3] + drop]), Color("#765438"))
+		draw_colored_polygon(PackedVector2Array([diamond[2], diamond[1], diamond[1] + drop, diamond[2] + drop]), Color("#5e412f"))
 	var terrain := _terrain_at(cell)
-	var color := Color("#5f9f58")
-	if terrain == Terrain.DIRT:
-		color = Color("#a87948")
-	elif terrain == Terrain.STONE:
-		color = Color("#747c83")
-	if (cell.x + cell.y) % 2 == 0:
-		color = color.lightened(0.045)
-	draw_colored_polygon(diamond, color)
-	draw_polyline(PackedVector2Array([diamond[0], diamond[1], diamond[2], diamond[3], diamond[0]]), Color("#263b35"), 1.5, true)
+	if terrain == Terrain.GRASS:
+		# Textures are cached resources and share a 72x48 anchor-ready canvas.
+		# They remain visual only: height, cost and blocking still come from map data.
+		var grass_texture := _grass_texture_for(cell)
+		draw_texture(grass_texture, center - GRASS_TEXTURE_OFFSET)
+		draw_polyline(PackedVector2Array([diamond[0], diamond[1], diamond[2], diamond[3], diamond[0]]), Color(0.12, 0.22, 0.12, 0.42), 1.0, true)
+	else:
+		var color := Color("#a87948") if terrain == Terrain.DIRT else Color("#747c83")
+		if (cell.x + cell.y) % 2 == 0:
+			color = color.lightened(0.045)
+		draw_colored_polygon(diamond, color)
+		draw_polyline(PackedVector2Array([diamond[0], diamond[1], diamond[2], diamond[3], diamond[0]]), Color("#263b35"), 1.5, true)
 	if cell == objective_cell:
 		draw_colored_polygon(diamond, Color(1.0, 0.78, 0.2, 0.55))
 		draw_polyline(PackedVector2Array([diamond[0], diamond[1], diamond[2], diamond[3], diamond[0]]), Color("#fff0a0"), 3.0, true)
@@ -187,3 +215,26 @@ func _terrain_at(cell: Vector2i) -> Terrain:
 	if (cell.x + cell.y * 3) % 11 in [0, 1]:
 		return Terrain.STONE
 	return Terrain.GRASS
+
+func grass_variant_id(cell: Vector2i) -> StringName:
+	var value := posmod(cell.x * 73856093 + cell.y * 19349663 + visual_seed, 24)
+	if value < 2:
+		return &"flowers"
+	if value == 2:
+		return &"stones"
+	if value == 3:
+		return &"tall"
+	return &"plain"
+
+func _grass_texture_for(cell: Vector2i) -> Texture2D:
+	var variant := grass_variant_id(cell)
+	var detail := posmod(cell.x * 83492791 + cell.y * 2971215073 + visual_seed, 12)
+	match variant:
+		&"flowers":
+			return GRASS_FLOWER_TEXTURES[detail % GRASS_FLOWER_TEXTURES.size()]
+		&"stones":
+			return GRASS_STONE_TEXTURES[detail % GRASS_STONE_TEXTURES.size()]
+		&"tall":
+			return GRASS_TALL_TEXTURES[detail % GRASS_TALL_TEXTURES.size()]
+		_:
+			return GRASS_PLAIN_TEXTURES[detail % GRASS_PLAIN_TEXTURES.size()]

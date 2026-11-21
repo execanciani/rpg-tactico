@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/iron_daggers.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/iron_daggers.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/iron_daggers.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "iron_daggers"
+display_name = "Dagas de hierro"
+description = "Par de hojas cortas para ataques rapidos."
+slot = 6
+category = "daggers"
+allowed_profession_ids = Array[String](["explorer"])
+derived_bonuses = {"physical_attack": 3, "critical_chance": 3}
+icon = ExtResource("2")
+body_model_id = "explorer"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

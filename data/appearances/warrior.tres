@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="AppearanceData" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/domain/appearance_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/characters/base/extracted/base_warrior.png" id="2"]
+[resource]
+script = ExtResource("1")
+appearance_id = "warrior"
+display_name = "Cuerpo de guerrero"
+preview_base = ExtResource("2")
+combat_archetype = "warrior"

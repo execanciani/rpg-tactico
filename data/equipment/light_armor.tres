@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/light_armor.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/light_armor.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/light_armor.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "light_armor"
+display_name = "Armadura ligera"
+description = "Proteccion oscura de placas pequeñas y flexibles."
+slot = 1
+category = "armor"
+allowed_profession_ids = Array[String](["explorer"])
+derived_bonuses = {"physical_defense": 2, "speed": 1}
+icon = ExtResource("2")
+body_model_id = "explorer"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

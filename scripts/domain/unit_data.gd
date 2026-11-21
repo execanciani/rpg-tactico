@@ -35,9 +35,12 @@ enum Team { HEROES, ENEMIES }
 @export var grid_position := Vector2i.ZERO
 @export var elevation := 0
 @export var abilities: Array[AbilityData] = []
+@export var body_model_id := ""
+@export var equipment_ids: Array[String] = []
 
 var main_attributes: Dictionary = {"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "MEN": 10}
 var skill_points := 0
+var equipment_items: Array[EquipmentItemData] = []
 
 var has_moved := false
 var has_acted := false
@@ -157,4 +160,6 @@ func make_snapshot() -> Dictionary:
 		"has_acted": has_acted,
 		"active_statuses": active_statuses.duplicate(true),
 		"ability_cooldowns": ability_cooldowns.duplicate(true),
+		"body_model_id": body_model_id,
+		"equipment_ids": equipment_ids.duplicate(),
 	}

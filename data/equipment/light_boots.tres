@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/light_boots.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/light_boots.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/light_boots.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "light_boots"
+display_name = "Botas ligeras"
+description = "Calzado silencioso para cambiar de posicion rapidamente."
+slot = 4
+category = "boots"
+allowed_profession_ids = Array[String](["archer"])
+derived_bonuses = {"evasion": 2, "speed": 1}
+icon = ExtResource("2")
+body_model_id = "archer"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

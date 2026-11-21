@@ -11,6 +11,7 @@ var is_selected := false
 var is_targeted := false
 var is_active := false
 var mage_visual: MageVisual
+var equipment_visual: EquipmentLayerVisual
 
 func setup(unit_data: UnitData, world_position: Vector2) -> void:
 	data = unit_data
@@ -28,6 +29,12 @@ func setup(unit_data: UnitData, world_position: Vector2) -> void:
 		mage_visual.position = Vector2(0, -15)
 		mage_visual.scale = Vector2(0.75, 0.75)
 		add_child(mage_visual)
+	if unit_data.team == UnitData.Team.HEROES and mage_visual != null:
+		equipment_visual = EquipmentLayerVisual.new()
+		equipment_visual.position = mage_visual.position
+		equipment_visual.scale = mage_visual.scale
+		add_child(equipment_visual)
+		refresh_equipment_visual()
 	queue_redraw()
 
 func set_selected(value: bool) -> void:
@@ -43,7 +50,15 @@ func set_active(value: bool) -> void:
 	queue_redraw()
 
 func refresh() -> void:
+	refresh_equipment_visual()
 	queue_redraw()
+
+func refresh_equipment_visual() -> void:
+	if equipment_visual == null or data == null:
+		return
+	equipment_visual.configure(data.body_model_id, data.equipment_items)
+	if mage_visual != null:
+		equipment_visual.set_facing(mage_visual.facing)
 
 func animate_path(path: Array[Vector2i], grid: IsometricGrid) -> void:
 	if path.is_empty():
@@ -75,6 +90,8 @@ func play_hit() -> void:
 func play_attack(target_position: Vector2, magical := false, ability_cast := false) -> void:
 	if mage_visual != null:
 		mage_visual.set_facing_from_vector(target_position - position)
+		if equipment_visual != null:
+			equipment_visual.set_facing(mage_visual.facing)
 		if ability_cast:
 			await mage_visual.play_cast()
 		else:
@@ -181,6 +198,8 @@ func _draw_flat_ellipse(center: Vector2, radii: Vector2, color: Color) -> void:
 
 func _play_walk_toward(destination: Vector2) -> void:
 	mage_visual.set_facing_from_vector(destination - position)
+	if equipment_visual != null:
+		equipment_visual.set_facing(mage_visual.facing)
 	mage_visual.play_walk()
 
 func _uses_human_mage_visual() -> bool:

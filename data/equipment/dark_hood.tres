@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/dark_hood.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/dark_hood.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/dark_hood.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "dark_hood"
+display_name = "Capucha oscura"
+description = "Capucha mate que reduce reflejos y distracciones."
+slot = 0
+category = "hood"
+allowed_profession_ids = Array[String](["explorer"])
+derived_bonuses = {"evasion": 2}
+icon = ExtResource("2")
+body_model_id = "explorer"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

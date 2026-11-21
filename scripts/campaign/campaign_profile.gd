@@ -4,6 +4,13 @@ extends RefCounted
 const MAX_CHARACTERS := 3
 const MIN_NAME_LENGTH := 3
 const MAX_NAME_LENGTH := 16
+const STARTER_ITEMS := {
+	"warrior": ["iron_sword", "wooden_shield", "leather_helmet", "leather_armor", "leather_boots"],
+	"mage": ["apprentice_staff", "arcane_robe", "cloth_hood", "cloth_gloves", "apprentice_sandals"],
+	"archer": ["wooden_bow", "leather_vest", "archer_gloves", "light_boots"],
+	"acolyte": ["ceremonial_staff", "healer_robe", "white_hood", "cloth_boots"],
+	"explorer": ["iron_daggers", "light_armor", "dark_hood", "explorer_boots"],
+}
 
 var characters: Dictionary = {}
 var slot_ids: Array[String] = []
@@ -48,6 +55,7 @@ func create_character(
 		return null
 	var character := CharacterProgress.new()
 	character.setup(character_id, clean_name, race, profession_id, initial_abilities)
+	_grant_starter_items(character)
 	characters[character_id] = character
 	slot_ids.append(character_id)
 	formation_ids.append(character_id)
@@ -150,7 +158,7 @@ func apply_to_hero(unit: UnitData, preserve_vitals := false) -> void:
 		return
 	var hp_ratio := float(unit.hp) / float(maxi(1, unit.max_hp))
 	var mp_ratio := float(unit.mp) / float(maxi(1, unit.max_mp))
-	var calculated := StatCalculator.calculate(progress, race, profession)
+	var calculated := StatCalculator.calculate(progress, race, profession, equipment_bonuses(progress))
 	var attributes: Dictionary = calculated.attributes
 	var derived: Dictionary = calculated.derived
 	unit.display_name = progress.display_name
@@ -162,6 +170,9 @@ func apply_to_hero(unit: UnitData, preserve_vitals := false) -> void:
 	unit.xp = progress.experience_into_level()
 	unit.xp_to_next = progress.experience_to_next_level()
 	unit.skill_points = progress.sp_available
+	unit.body_model_id = progress.appearance_id
+	unit.equipment_ids.assign(progress.equipped_items.values())
+	unit.equipment_items = equipped_resources(progress)
 	unit.main_attributes = attributes.duplicate(true)
 	unit.max_hp = int(derived.max_hp)
 	unit.max_mp = int(derived.max_mp)
@@ -196,6 +207,34 @@ func change_profession(character_id: String, profession_id: String) -> bool:
 	var progress := character(character_id)
 	var next_profession := catalog.profession(profession_id)
 	return progress != null and progress.change_profession(next_profession)
+
+func equip_item(character_id: String, item_id: String) -> bool:
+	var progress := character(character_id)
+	return progress != null and progress.equip(catalog.equipment_item(item_id))
+
+func unequip_item(character_id: String, slot_id: String) -> bool:
+	var progress := character(character_id)
+	return progress != null and progress.unequip(slot_id)
+
+func equipped_resources(progress: CharacterProgress) -> Array[EquipmentItemData]:
+	var result: Array[EquipmentItemData] = []
+	if progress == null:
+		return result
+	for item_id in progress.equipped_items.values():
+		var item := catalog.equipment_item(str(item_id))
+		if item != null:
+			result.append(item)
+	return result
+
+func equipment_bonuses(progress: CharacterProgress) -> Dictionary:
+	var attributes := {}
+	var derived := {}
+	for item in equipped_resources(progress):
+		for stat_id in item.attribute_bonuses:
+			attributes[stat_id] = int(attributes.get(stat_id, 0)) + int(item.attribute_bonuses[stat_id])
+		for stat_id in item.derived_bonuses:
+			derived[stat_id] = int(derived.get(stat_id, 0)) + int(item.derived_bonuses[stat_id])
+	return {"attributes": attributes, "derived": derived}
 
 func award_mission(mission: MissionData, heroes: Array[UnitData]) -> Array[String]:
 	var messages: Array[String] = []
@@ -246,6 +285,8 @@ func restore(snapshot: Dictionary) -> void:
 			characters[str(character_id)] = progress
 			progress.restore(data, race)
 			_sanitize_restored_character(progress, str(character_id), race, fallback_profession_id)
+			if not data.has("inventory") and not data.has("equipped_items"):
+				_grant_starter_items(progress)
 	elif not snapshot.get("hero_progress", {}).is_empty():
 		initialize_default()
 		_restore_legacy_progress(snapshot.get("hero_progress", {}))
@@ -300,6 +341,31 @@ func _sanitize_restored_character(
 	for attribute_id in StatCalculator.ATTRIBUTE_IDS:
 		var fallback_value := int(race.base_attributes.get(attribute_id, 10))
 		progress.base_attributes[attribute_id] = clampi(int(progress.base_attributes.get(attribute_id, fallback_value)), 1, 200)
+	if catalog.appearance(progress.appearance_id) == null:
+		progress.appearance_id = _initial_profession_id(progress)
+	var valid_inventory := {}
+	for item_id in progress.inventory:
+		if catalog.equipment_item(str(item_id)) != null and int(progress.inventory[item_id]) > 0:
+			valid_inventory[str(item_id)] = clampi(int(progress.inventory[item_id]), 1, 99)
+	progress.inventory = valid_inventory
+	var valid_equipped := {}
+	for slot_id in progress.equipped_items:
+		var item := catalog.equipment_item(str(progress.equipped_items[slot_id]))
+		if item != null and item.slot_key() == str(slot_id) and item.can_be_used_by(progress):
+			valid_equipped[str(slot_id)] = item.item_id
+		elif item != null:
+			progress.add_item(item.item_id)
+	progress.equipped_items = valid_equipped
+
+func _initial_profession_id(progress: CharacterProgress) -> String:
+	return progress.profession_history[0] if not progress.profession_history.is_empty() else progress.profession_id
+
+func _grant_starter_items(progress: CharacterProgress) -> void:
+	var family := _initial_profession_id(progress)
+	progress.appearance_id = family
+	for item_id in STARTER_ITEMS.get(family, []):
+		if catalog.equipment_item(str(item_id)) != null:
+			progress.add_item(str(item_id))
 
 func _profession_is_valid_for_race(profession: ProfessionData, race: RaceData) -> bool:
 	var branch := profession

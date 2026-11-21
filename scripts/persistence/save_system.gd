@@ -2,7 +2,7 @@ class_name SaveSystem
 extends RefCounted
 
 const SAVE_PATH := "user://campaign_save.json"
-const SAVE_VERSION := 6
+const SAVE_VERSION := 7
 const BACKUP_SUFFIX := ".bak"
 const TEMP_SUFFIX := ".tmp"
 

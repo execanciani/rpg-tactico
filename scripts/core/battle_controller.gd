@@ -43,6 +43,8 @@ func _ready() -> void:
 	ui.progression_requested.connect(_on_progression_requested)
 	ui.learn_skill_requested.connect(_on_learn_skill_requested)
 	ui.profession_change_requested.connect(_on_profession_change_requested)
+	ui.equip_requested.connect(_on_equip_requested)
+	ui.unequip_requested.connect(_on_unequip_requested)
 	ui.progression_closed.connect(_on_progression_closed)
 	ui.save_requested.connect(_on_save_requested)
 	ui.load_requested.connect(_on_load_requested)
@@ -319,7 +321,7 @@ func _on_progression_requested() -> void:
 		return
 	progression_open = true
 	input_locked = true
-	ui.show_progression(campaign.profile, selected_unit.data.archetype_id if selected_unit != null else "")
+	ui.show_progression(campaign.profile, selected_unit.data.unit_id if selected_unit != null else "")
 
 func _on_learn_skill_requested(character_id: String, ability_id: String) -> void:
 	if not progression_open or phase != Phase.PLAYER:
@@ -347,6 +349,42 @@ func _on_progression_closed() -> void:
 	progression_open = false
 	if phase == Phase.PLAYER:
 		input_locked = false
+
+func _on_equip_requested(character_id: String, item_id: String) -> void:
+	if not progression_open or phase != Phase.PLAYER:
+		return
+	if campaign.profile.equip_item(character_id, item_id):
+		_refresh_character_equipment(character_id)
+		_save_equipment_state()
+		ui.show_message("Objeto equipado.", Color("#9fe0bd"))
+	else:
+		ui.show_message("El objeto no cumple los requisitos.", Color("#ffcf88"))
+
+func _on_unequip_requested(character_id: String, slot_id: String) -> void:
+	if not progression_open or phase != Phase.PLAYER:
+		return
+	if campaign.profile.unequip_item(character_id, slot_id):
+		_refresh_character_equipment(character_id)
+		_save_equipment_state()
+		ui.show_message("Objeto devuelto al inventario.", Color("#9fe0bd"))
+
+func _refresh_character_equipment(character_id: String) -> void:
+	var view := _unit_by_id(character_id)
+	if view != null:
+		campaign.profile.apply_to_hero(view.data, true)
+		view.refresh()
+		if selected_unit == view:
+			ui.show_unit(view.data)
+	ui.show_progression(campaign.profile, character_id, "equipment")
+
+func _save_equipment_state() -> void:
+	SaveSystem.save_game({
+		"mission_index": campaign.current_mission_index,
+		"round": round_number,
+		"turn_manager": turn_manager.snapshot(),
+		"profile": campaign.profile.make_snapshot(),
+		"units": unit_views.map(func(view: TacticalUnit): return view.data.make_snapshot()),
+	})
 
 func _sync_character_view(character_id: String) -> void:
 	var view := _unit_by_id(character_id)

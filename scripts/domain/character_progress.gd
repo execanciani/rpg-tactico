@@ -12,6 +12,9 @@ extends Resource
 @export var sp_spent := 0
 @export var base_attributes: Dictionary = {}
 @export var learned_ability_ids: Array[String] = []
+@export var appearance_id := "warrior"
+@export var inventory: Dictionary = {}
+@export var equipped_items: Dictionary = {}
 
 func setup(id: String, name: String, selected_race: RaceData, initial_profession: String, initial_abilities: Array[String] = []) -> void:
 	character_id = id
@@ -25,6 +28,40 @@ func setup(id: String, name: String, selected_race: RaceData, initial_profession
 	sp_spent = 0
 	base_attributes = selected_race.base_attributes.duplicate(true)
 	learned_ability_ids = initial_abilities.duplicate()
+	appearance_id = initial_profession
+	inventory.clear()
+	equipped_items.clear()
+
+func add_item(item_id: String, quantity := 1) -> void:
+	if item_id.is_empty() or quantity <= 0:
+		return
+	inventory[item_id] = int(inventory.get(item_id, 0)) + quantity
+
+func item_quantity(item_id: String) -> int:
+	return maxi(0, int(inventory.get(item_id, 0)))
+
+func equip(item: EquipmentItemData) -> bool:
+	if item == null or item_quantity(item.item_id) <= 0 or not item.can_be_used_by(self):
+		return false
+	var slot_id := item.slot_key()
+	if str(equipped_items.get(slot_id, "")) == item.item_id:
+		return true
+	var previous_id := str(equipped_items.get(slot_id, ""))
+	inventory[item.item_id] = item_quantity(item.item_id) - 1
+	if int(inventory[item.item_id]) <= 0:
+		inventory.erase(item.item_id)
+	if not previous_id.is_empty():
+		add_item(previous_id)
+	equipped_items[slot_id] = item.item_id
+	return true
+
+func unequip(slot_id: String) -> bool:
+	var item_id := str(equipped_items.get(slot_id, ""))
+	if item_id.is_empty():
+		return false
+	equipped_items.erase(slot_id)
+	add_item(item_id)
+	return true
 
 func gain_experience(amount: int) -> Dictionary:
 	var safe_amount := clampi(amount, 0, ExperienceRules.MAX_EXPERIENCE_GAIN)
@@ -96,6 +133,9 @@ func make_snapshot() -> Dictionary:
 		"sp_spent": sp_spent,
 		"base_attributes": base_attributes.duplicate(true),
 		"learned_ability_ids": learned_ability_ids.duplicate(),
+		"appearance_id": appearance_id,
+		"inventory": inventory.duplicate(true),
+		"equipped_items": equipped_items.duplicate(true),
 	}
 
 func restore(snapshot: Dictionary, fallback_race: RaceData) -> void:
@@ -112,3 +152,6 @@ func restore(snapshot: Dictionary, fallback_race: RaceData) -> void:
 	sp_spent = clampi(int(snapshot.get("sp_spent", 0)), 0, 10000)
 	base_attributes = snapshot.get("base_attributes", fallback_race.base_attributes).duplicate(true)
 	learned_ability_ids.assign(snapshot.get("learned_ability_ids", []))
+	appearance_id = str(snapshot.get("appearance_id", profession_id))
+	inventory = snapshot.get("inventory", {}).duplicate(true)
+	equipped_items = snapshot.get("equipped_items", {}).duplicate(true)

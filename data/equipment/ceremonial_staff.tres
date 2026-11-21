@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/ceremonial_staff.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/ceremonial_staff.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/ceremonial_staff.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "ceremonial_staff"
+display_name = "Baston ceremonial"
+description = "Simbolo de servicio que canaliza energia restauradora."
+slot = 6
+category = "staff"
+allowed_profession_ids = Array[String](["acolyte"])
+derived_bonuses = {"magical_attack": 3, "max_mp": 3}
+icon = ExtResource("2")
+body_model_id = "acolyte"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

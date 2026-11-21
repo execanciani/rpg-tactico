@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/cloth_boots.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/cloth_boots.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/cloth_boots.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "cloth_boots"
+display_name = "Botas de tela"
+description = "Botas suaves que no interrumpen los rituales."
+slot = 4
+category = "boots"
+allowed_profession_ids = Array[String](["acolyte"])
+derived_bonuses = {"speed": 1}
+icon = ExtResource("2")
+body_model_id = "acolyte"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

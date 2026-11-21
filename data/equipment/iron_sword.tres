@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/equipment/icons/iron_sword.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/equipment/preview/iron_sword.png" id="3"]
+[ext_resource type="Texture2D" path="res://assets/equipment/combat/iron_sword.png" id="4"]
+[resource]
+script = ExtResource("1")
+item_id = "iron_sword"
+display_name = "Espada de hierro"
+description = "Hoja sencilla y equilibrada para combatientes novatos."
+slot = 6
+category = "sword"
+allowed_profession_ids = Array[String](["warrior"])
+derived_bonuses = {"physical_attack": 4}
+icon = ExtResource("2")
+body_model_id = "warrior"
+preview_visual = ExtResource("3")
+combat_visual = ExtResource("4")

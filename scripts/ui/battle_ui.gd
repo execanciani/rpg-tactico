@@ -9,6 +9,8 @@ signal ability_selected(ability_id: StringName)
 signal progression_requested
 signal learn_skill_requested(character_id: String, ability_id: String)
 signal profession_change_requested(character_id: String, profession_id: String)
+signal equip_requested(character_id: String, item_id: String)
+signal unequip_requested(character_id: String, slot_id: String)
 signal progression_closed
 signal save_requested
 signal load_requested
@@ -305,10 +307,10 @@ func _build_progression_overlay() -> void:
 	sections.alignment = BoxContainer.ALIGNMENT_CENTER
 	sections.add_theme_constant_override("separation", 8)
 	root_column.add_child(sections)
-	for section_data in [["character", "Personaje"], ["profession", "Profesiones"], ["skills", "Habilidades"]]:
+	for section_data in [["character", "Personaje"], ["equipment", "Equipo"], ["profession", "Profesiones"], ["skills", "Habilidades"]]:
 		var section_button := Button.new()
 		section_button.text = section_data[1]
-		section_button.custom_minimum_size = Vector2(155, 42)
+		section_button.custom_minimum_size = Vector2(135, 42)
 		section_button.pressed.connect(_select_progression_tab.bind(str(section_data[0])))
 		sections.add_child(section_button)
 	var scroll := ScrollContainer.new()
@@ -483,6 +485,8 @@ func _rebuild_progression_content() -> void:
 	if progress == null:
 		return
 	match progression_tab:
+		"equipment":
+			_build_equipment_screen(progress)
 		"profession":
 			_build_profession_screen(progress)
 		"skills":
@@ -493,7 +497,7 @@ func _rebuild_progression_content() -> void:
 func _build_character_screen(progress: CharacterProgress) -> void:
 	var race := progression_profile.catalog.race(progress.race_id)
 	var profession := progression_profile.catalog.profession(progress.profession_id)
-	var calculated := StatCalculator.calculate(progress, race, profession)
+	var calculated := StatCalculator.calculate(progress, race, profession, progression_profile.equipment_bonuses(progress))
 	var attributes: Dictionary = calculated.attributes
 	var derived: Dictionary = calculated.derived
 	var label := Label.new()
@@ -508,6 +512,100 @@ func _build_character_screen(progress: CharacterProgress) -> void:
 		int(derived.speed), int(derived.move_range), int(derived.effect_resistance), race.description,
 	]
 	progression_content.add_child(label)
+
+func _build_equipment_screen(progress: CharacterProgress) -> void:
+	var race := progression_profile.catalog.race(progress.race_id)
+	var profession := progression_profile.catalog.profession(progress.profession_id)
+	var calculated := StatCalculator.calculate(progress, race, profession, progression_profile.equipment_bonuses(progress))
+	var derived: Dictionary = calculated.derived
+	var heading := Label.new()
+	heading.add_theme_font_size_override("font_size", 18)
+	heading.text = "%s · %s · %s · Nivel %d\nATQ %d   MAG %d   DEF %d   RES %d   VEL %d   EVA %d" % [
+		progress.display_name, race.display_name, profession.display_name, progress.level,
+		int(derived.physical_attack), int(derived.magical_attack), int(derived.physical_defense),
+		int(derived.magical_defense), int(derived.speed), int(derived.evasion),
+	]
+	progression_content.add_child(heading)
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 18)
+	progression_content.add_child(body)
+	body.add_child(_equipment_preview(progress))
+	var lists := VBoxContainer.new()
+	lists.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lists.add_theme_constant_override("separation", 6)
+	body.add_child(lists)
+	var slots_title := Label.new()
+	slots_title.text = "EQUIPAMIENTO ACTUAL"
+	slots_title.add_theme_color_override("font_color", Color("#ffe195"))
+	lists.add_child(slots_title)
+	var slot_names := {
+		"head": "Cabeza", "torso": "Torso", "legs": "Piernas", "hands": "Manos",
+		"feet": "Pies", "cape": "Capa", "main_hand": "Arma principal", "off_hand": "Arma secundaria",
+	}
+	for slot_id in EquipmentItemData.SLOT_KEYS:
+		var equipped_id := str(progress.equipped_items.get(slot_id, ""))
+		var equipped := progression_profile.catalog.equipment_item(equipped_id)
+		var slot_button := Button.new()
+		slot_button.text = "%s: %s" % [slot_names[slot_id], equipped.display_name if equipped != null else "Vacio"]
+		slot_button.tooltip_text = "Tocar para desequipar y devolver al inventario." if equipped != null else "Espacio disponible."
+		slot_button.disabled = equipped == null
+		slot_button.pressed.connect(_emit_unequip.bind(progress.character_id, slot_id))
+		lists.add_child(slot_button)
+	var inventory_title := Label.new()
+	inventory_title.text = "INVENTARIO DISPONIBLE"
+	inventory_title.add_theme_color_override("font_color", Color("#9fd5bd"))
+	lists.add_child(inventory_title)
+	var item_ids: Array[String] = []
+	item_ids.assign(progress.inventory.keys())
+	item_ids.sort()
+	if item_ids.is_empty():
+		var empty := Label.new()
+		empty.text = "No hay objetos disponibles."
+		lists.add_child(empty)
+	for item_id in item_ids:
+		var item := progression_profile.catalog.equipment_item(item_id)
+		if item == null:
+			continue
+		var item_button := Button.new()
+		item_button.icon = item.icon
+		item_button.icon_max_width = 36
+		item_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		item_button.text = "%s ×%d · %s\n%s" % [item.display_name, progress.item_quantity(item_id), slot_names[item.slot_key()], str(item.derived_bonuses)]
+		item_button.tooltip_text = item.description
+		item_button.disabled = not item.can_be_used_by(progress)
+		item_button.pressed.connect(_emit_equip.bind(progress.character_id, item.item_id))
+		lists.add_child(item_button)
+
+func _equipment_preview(progress: CharacterProgress) -> Control:
+	var preview := Control.new()
+	preview.custom_minimum_size = Vector2(256, 384)
+	var appearance := progression_profile.catalog.appearance(progress.appearance_id)
+	if appearance == null:
+		return preview
+	_add_preview_texture(preview, appearance.preview_base)
+	for slot_id in EquipmentLayerVisual.SLOT_ORDER:
+		var item := progression_profile.catalog.equipment_item(str(progress.equipped_items.get(slot_id, "")))
+		if item != null:
+			_add_preview_texture(preview, item.visual_for(progress.appearance_id, false))
+	return preview
+
+func _add_preview_texture(parent: Control, texture: Texture2D) -> void:
+	if texture == null:
+		return
+	var layer := TextureRect.new()
+	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.texture = texture
+	layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	layer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(layer)
+
+func _emit_equip(character_id: String, item_id: String) -> void:
+	equip_requested.emit(character_id, item_id)
+
+func _emit_unequip(character_id: String, slot_id: String) -> void:
+	unequip_requested.emit(character_id, slot_id)
 
 func _build_profession_screen(progress: CharacterProgress) -> void:
 	var current := progression_profile.catalog.profession(progress.profession_id)

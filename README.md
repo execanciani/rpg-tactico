@@ -59,6 +59,23 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 - La pantalla de creación usa `portrait_human_mage.png` únicamente para la combinación Humano + Mago; las demás razas conservan su retrato correspondiente.
 - La hoja solo incluye caminar, atacar y lanzar lateralmente. Frente y espalda utilizan sus poses idle hasta que existan cuadros adicionales.
 
+### Terreno isometrico de cesped
+
+- La composicion `assets/tilesets/grass/grass_tileset.png` se procesa de forma reproducible mediante `tools/extract_grass_tileset.py`.
+- Las superficies transitables se normalizan en lienzos transparentes de 72x48 y conservan el diamante logico de 64x32 sin interpolacion.
+- El renderizador personalizado selecciona variantes de cesped normal, flores, piedras y hierba alta de forma determinista segun la mision y las coordenadas.
+- Las texturas son solo presentacion: alturas, obstaculos, costes, seleccion, rutas y linea de vision siguen usando los datos existentes.
+- Los bloques, bordes y escaleras se extraen como recursos preparados. Las caras laterales siguen dibujandose por codigo porque las misiones actuales no almacenan direccion o tipo de escalera; mostrar una pieza arbitraria indicaria conexiones falsas.
+
+### Equipamiento visual por capas
+
+- `tools/prepare_equipment_assets.py` extrae cinco cuerpos base limpios de la composicion original y genera iconos y capas provisionales transparentes para vista previa y combate.
+- Cada personaje conserva un `appearance_id` independiente de su profesion, inventario con cantidades y ocho slots persistidos mediante IDs estables.
+- Los 22 objetos iniciales son Resources externos con requisitos, bonificaciones, icono y variantes visuales por modelo corporal.
+- La pestaña **Equipo** permite equipar y desequipar con mouse o tactil, recalcula las estadisticas desde sus fuentes y guarda el cambio automaticamente.
+- Las capas de casco, torso, manos, pies, arma y escudo se muestran sobre los sprites de combate; armas, escudos y capas cambian su orden segun la orientacion.
+- El arte inicial de equipo usa una pose corporal estatica coherente sobre las animaciones existentes. Todavia faltan overlays dibujados cuadro por cuadro para cada direccion y estado.
+
 ### Progresión
 
 - Cinco razas originales configuradas en recursos: Humanos, Elfos, Elfos oscuros, Orcos y Enanos.
@@ -87,7 +104,7 @@ Cada misión tiene briefing, diálogo introductorio, diálogo de victoria y reco
 
 ### Guardado
 
-Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 6 conserva y migra partidas desde la versión 3:
+Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 7 conserva y migra partidas desde la versión 3:
 
 - Misión y ronda actual.
 - HP, MP, posiciones, estados alterados y enfriamientos.
@@ -96,6 +113,7 @@ Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El format
 - Nivel, experiencia total, SP disponible/gastado y habilidades aprendidas.
 - Atributos base permanentes; las estadísticas derivadas se recalculan al cargar.
 - Personajes creados, espacios ocupados, formación seleccionada y misiones completadas.
+- Apariencia corporal, inventario, cantidades y equipamiento por IDs estables.
 
 Sólo se guarda durante el turno del jugador para evitar estados intermedios de animaciones o IA.
 
@@ -106,6 +124,7 @@ Sólo se guarda durante el turno del jugador para evitar estados intermedios de 
 - `data/races`: cinco razas y sus profesiones iniciales permitidas.
 - `data/professions`: árbol profesional definido completamente mediante datos.
 - `data/status_effects`: escarcha, quemadura y mejoras defensivas.
+- `data/equipment` y `data/appearances`: objetos equipables y modelos corporales externos.
 - `data/missions`: mapa, objetivo, diálogo y recompensas.
 - `scripts/domain`: recursos y estado permanente o temporal de personajes y unidades.
 - `scripts/core`: reglas, comandos, controlador y simulador determinista.
@@ -129,4 +148,4 @@ La prueba cubre modificadores raciales, cálculo idempotente de estadísticas, e
 
 ## Alcance pendiente
 
-Quedan para fases posteriores bonificaciones reales de equipamiento, habilidades exclusivas para todas las ramas avanzadas, tercera evolución de nivel 76, sprites definitivos, audio, localización y multijugador.
+Quedan para fases posteriores overlays de equipo cuadro por cuadro, variantes corporales por raza, habilidades exclusivas para todas las ramas avanzadas, tercera evolución de nivel 76, sprites definitivos, audio, localización y multijugador.
