@@ -14,9 +14,11 @@ static func normalized(value: Dictionary, slot_index: int) -> Dictionary:
 	var amount := maxi(0, int(value.get("quantity", 0)))
 	if item.is_empty() or amount <= 0:
 		return empty(slot_index)
+	var raw_state: Variant = value.get("state", {})
+	var clean_state: Dictionary = raw_state.duplicate(true) if raw_state is Dictionary else {}
 	return {
 		"index": slot_index,
 		"item_id": item,
 		"quantity": amount,
-		"state": value.get("state", {}).duplicate(true),
+		"state": clean_state,
 	}
