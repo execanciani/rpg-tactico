@@ -1,6 +1,10 @@
 class_name CharacterPreviewPanel
 extends HBoxContainer
 
+func _ready() -> void:
+	custom_minimum_size = Vector2(0, 220)
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
 func configure(catalog: ProgressionCatalog, race_id: String, profession_id: String, character_name := "") -> void:
 	for child in get_children():
 		child.queue_free()
@@ -13,6 +17,15 @@ func configure(catalog: ProgressionCatalog, race_id: String, profession_id: Stri
 	portrait.custom_minimum_size = Vector2(180, 180)
 	portrait.configure(race_id, profession_id, true)
 	add_child(portrait)
+	if race_id == "human" and profession_id in ["mage", "elementalist", "summoner", "frost_sorcerer", "flame_sorcerer", "spirit_master"]:
+		var sprite_preview := TextureRect.new()
+		sprite_preview.custom_minimum_size = Vector2(96, 180)
+		sprite_preview.texture = load("res://assets/sprites/characters/mage/idle/front_00.png") as Texture2D
+		sprite_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sprite_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		sprite_preview.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		sprite_preview.tooltip_text = "Vista previa del mago en combate"
+		add_child(sprite_preview)
 	var temporary := CharacterProgress.new()
 	temporary.setup("preview", character_name if not character_name.is_empty() else "Aventurero", race, profession_id)
 	var stats := StatCalculator.calculate(temporary, race, profession)

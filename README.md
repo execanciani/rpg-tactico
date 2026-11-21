@@ -50,6 +50,15 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 - Quemadura: causa daño al comienzo del turno.
 - IA determinista que prioriza habilidades según daño, área y estados.
 
+### Mago humano pixel art
+
+- La composición `assets/sprites/characters/mage/mage_spritesheet.png` se procesa mediante `tools/extract_mage_assets.py`.
+- Los cuadros de combate se normalizan sobre lienzos transparentes de 96×96, alineados por los pies y sin interpolación.
+- El mago humano utiliza `AnimatedSprite2D` para idle, caminar, ataque básico, lanzamiento, daño y derrota.
+- Las habilidades mágicas muestran preparación, proyectil y un impacto de hielo o explosión sin modificar daño ni MP.
+- La pantalla de creación usa `portrait_human_mage.png` únicamente para la combinación Humano + Mago; las demás razas conservan su retrato correspondiente.
+- La hoja solo incluye caminar, atacar y lanzar lateralmente. Frente y espalda utilizan sus poses idle hasta que existan cuadros adicionales.
+
 ### Progresión
 
 - Cinco razas originales configuradas en recursos: Humanos, Elfos, Elfos oscuros, Orcos y Enanos.
@@ -62,8 +71,9 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 - Seis habilidades aprendibles nuevas, además de las habilidades de combate existentes.
 - Pantallas táctiles de personaje, profesiones y aprendizaje de habilidades.
 - Pantalla inicial independiente para creación, selección y gestión de hasta tres personajes.
-- Retratos provisionales originales generados mediante código y reemplazables por recursos pixel art.
-- Para reemplazarlos, se puede colocar `assets/portraits/races/<race_id>.png` o `assets/portraits/classes/<profession_id>.png`; la interfaz los carga automáticamente con filtrado nearest-neighbor.
+- Los cinco retratos raciales se extraen de la referencia original mediante `tools/extract_character_selection_assets.py`.
+- Si falta una imagen se utiliza un retrato provisional generado mediante código.
+- Para reemplazarlos, se puede colocar `assets/portraits/races/portrait_<race_id>.png` o `assets/portraits/classes/portrait_<profession_id>.png`; la interfaz los carga automáticamente con filtrado nearest-neighbor.
 
 ### Campaña
 
@@ -103,6 +113,7 @@ Sólo se guarda durante el turno del jugador para evitar estados intermedios de 
 - `scripts/grid`: mapa isométrico y navegación con altura.
 - `scripts/persistence`: guardado JSON versionado.
 - `scripts/presentation`: cámara, unidades procedurales y efectos.
+- `scenes/presentation`: visual animado y efectos reutilizables del mago.
 - `scripts/ui`: HUD, progresión, creación de personajes, diálogos y resultados.
 - `scenes/ui`: escenas reutilizables de selección, tarjetas, razas, profesiones, vista previa y confirmación.
 - `assets/portraits` y `assets/sprites`: ubicaciones preparadas para reemplazar retratos y sprites provisionales.

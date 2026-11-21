@@ -27,8 +27,10 @@ func show_empty(slot_number: int) -> void:
 	var label := Label.new()
 	label.text = "ESPACIO %d\n\n+" % slot_number
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 40)
+	label.add_theme_font_size_override("font_size", 56)
 	label.add_theme_color_override("font_color", Color("#eac56d"))
+	label.add_theme_color_override("font_outline_color", Color("#6f4515"))
+	label.add_theme_constant_override("outline_size", 5)
 	content.add_child(label)
 	var button := Button.new()
 	button.text = "CREAR PERSONAJE"
@@ -77,7 +79,7 @@ func _style(background: Color, border: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = background
 	style.border_color = border
-	style.set_border_width_all(4)
-	style.set_corner_radius_all(8)
+	style.set_border_width_all(6)
+	style.set_corner_radius_all(10)
 	style.set_content_margin_all(14)
 	return style

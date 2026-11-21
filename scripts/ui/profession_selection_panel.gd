@@ -3,6 +3,10 @@ extends VBoxContainer
 
 signal profession_selected(profession_id: String)
 
+func _ready() -> void:
+	custom_minimum_size = Vector2(0, 260)
+	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
 func configure(catalog: ProgressionCatalog, race: RaceData, selected_profession_id := "") -> void:
 	for child in get_children():
 		child.queue_free()
@@ -19,7 +23,7 @@ func configure(catalog: ProgressionCatalog, race: RaceData, selected_profession_
 		var button := Button.new()
 		button.text = "%s\n%s" % [profession.display_name, profession.description]
 		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		button.custom_minimum_size = Vector2(360, 96)
+		button.custom_minimum_size = Vector2(250, 96)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.toggle_mode = true
 		button.button_pressed = profession_id == selected_profession_id

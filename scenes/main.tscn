@@ -1,35 +1,35 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene format=3 uid="uid://eadf13p2q0g2"]
 
-[ext_resource type="Script" path="res://scripts/core/battle_controller.gd" id="1_controller"]
-[ext_resource type="Script" path="res://scripts/grid/isometric_grid.gd" id="2_grid"]
-[ext_resource type="Script" path="res://scripts/ui/battle_ui.gd" id="3_ui"]
-[ext_resource type="Script" path="res://scripts/presentation/tactical_camera.gd" id="4_camera"]
+[ext_resource type="Script" uid="uid://dus5uybjgm4a" path="res://scripts/core/battle_controller.gd" id="1_controller"]
+[ext_resource type="Script" uid="uid://b4ywyyyvmg0ov" path="res://scripts/grid/isometric_grid.gd" id="2_grid"]
+[ext_resource type="Script" uid="uid://cpyppy6xj2wkl" path="res://scripts/ui/battle_ui.gd" id="3_ui"]
+[ext_resource type="Script" uid="uid://dmpg2v0tppkna" path="res://scripts/presentation/tactical_camera.gd" id="4_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/character_selection_screen.tscn" id="5_selection"]
 
-[node name="Battle" type="Node2D"]
+[node name="Battle" type="Node2D" unique_id=1073640049]
 script = ExtResource("1_controller")
 
-[node name="Backdrop" type="Polygon2D" parent="."]
-polygon = PackedVector2Array(-800, -450, 800, -450, 800, 550, -800, 550)
-color = Color(0.0666667, 0.105882, 0.129412, 1)
+[node name="Backdrop" type="Polygon2D" parent="." unique_id=647933736]
 z_index = -100
+color = Color(0.0666667, 0.105882, 0.129412, 1)
+polygon = PackedVector2Array(-800, -450, 800, -450, 800, 550, -800, 550)
 
-[node name="IsometricGrid" type="Node2D" parent="."]
+[node name="IsometricGrid" type="Node2D" parent="." unique_id=790646209]
 script = ExtResource("2_grid")
 
-[node name="Units" type="Node2D" parent="."]
+[node name="Units" type="Node2D" parent="." unique_id=1333806136]
 
-[node name="Effects" type="Node2D" parent="."]
+[node name="Effects" type="Node2D" parent="." unique_id=2054555839]
 
-[node name="Camera2D" type="Camera2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="." unique_id=977350111]
 position = Vector2(0, 150)
 position_smoothing_enabled = true
 position_smoothing_speed = 8.0
 script = ExtResource("4_camera")
 
-[node name="Interface" type="CanvasLayer" parent="."]
+[node name="Interface" type="CanvasLayer" parent="." unique_id=1586103667]
 
-[node name="BattleUI" type="Control" parent="Interface"]
+[node name="BattleUI" type="Control" parent="Interface" unique_id=203828606]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -38,4 +38,4 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("3_ui")
 
-[node name="CharacterSelectionScreen" parent="Interface" instance=ExtResource("5_selection")]
+[node name="CharacterSelectionScreen" parent="Interface" unique_id=2077978010 instance=ExtResource("5_selection")]

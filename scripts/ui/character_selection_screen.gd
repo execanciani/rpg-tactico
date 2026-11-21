@@ -34,7 +34,6 @@ var pending_name := ""
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	_build_background()
 	_build_main_content()
 	_build_creation_overlay()
 	_build_info_overlay()
@@ -82,17 +81,6 @@ func show_creation_error(message: String) -> void:
 	creation_error.text = message
 	creation_error.visible = true
 
-func _build_background() -> void:
-	var background := ColorRect.new()
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	background.color = Color("#091321")
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(background)
-	var horizon := Polygon2D.new()
-	horizon.polygon = PackedVector2Array([Vector2(-100, 520), Vector2(300, 250), Vector2(520, 430), Vector2(780, 180), Vector2(1030, 420), Vector2(1450, 260), Vector2(1450, 800), Vector2(-100, 800)])
-	horizon.color = Color("#182d43")
-	background.add_child(horizon)
-
 func _build_main_content() -> void:
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -104,12 +92,19 @@ func _build_main_content() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 14)
 	margin.add_child(column)
+	var title_panel := PanelContainer.new()
+	title_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	title_panel.custom_minimum_size = Vector2(620, 72)
+	title_panel.add_theme_stylebox_override("panel", _title_style())
+	column.add_child(title_panel)
 	var title := Label.new()
 	title.text = "SELECCIONAR PERSONAJES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 36)
 	title.add_theme_color_override("font_color", Color("#f0c76a"))
-	column.add_child(title)
+	title.add_theme_color_override("font_outline_color", Color("#50371a"))
+	title.add_theme_constant_override("outline_size", 5)
+	title_panel.add_child(title)
 	status_label = Label.new()
 	status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status_label.add_theme_color_override("font_color", Color("#aec7d8"))
@@ -125,8 +120,10 @@ func _build_main_content() -> void:
 	slots_scroll.add_child(slots_row)
 	start_button = Button.new()
 	start_button.text = "COMENZAR AVENTURA"
-	start_button.custom_minimum_size = Vector2(0, 64)
+	start_button.custom_minimum_size = Vector2(520, 68)
+	start_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	start_button.add_theme_font_size_override("font_size", 22)
+	_apply_primary_button_style(start_button)
 	start_button.pressed.connect(func(): adventure_requested.emit())
 	column.add_child(start_button)
 
@@ -322,3 +319,32 @@ func _panel_style() -> StyleBoxFlat:
 	style.set_corner_radius_all(8)
 	style.set_content_margin_all(18)
 	return style
+
+func _title_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("#102b56")
+	style.border_color = Color("#f0c04f")
+	style.set_border_width_all(5)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(10)
+	return style
+
+func _apply_primary_button_style(button: Button) -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color("#155ab1")
+	normal.border_color = Color("#f0c04f")
+	normal.set_border_width_all(5)
+	normal.set_corner_radius_all(9)
+	normal.set_content_margin_all(10)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color("#2677d2")
+	var disabled := normal.duplicate() as StyleBoxFlat
+	disabled.bg_color = Color("#263b57")
+	disabled.border_color = Color("#776b51")
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", hover)
+	button.add_theme_stylebox_override("disabled", disabled)
+	button.add_theme_color_override("font_color", Color("#fff0bd"))
+	button.add_theme_color_override("font_outline_color", Color("#3b2712"))
+	button.add_theme_constant_override("outline_size", 3)

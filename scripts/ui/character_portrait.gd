@@ -16,10 +16,15 @@ func configure(new_race_id: String, new_profession_id := "", is_highlighted := f
 	profession_id = new_profession_id
 	highlighted = is_highlighted
 	portrait_texture = null
-	var class_path := "res://assets/portraits/classes/%s.png" % profession_id
-	var race_path := "res://assets/portraits/races/%s.png" % race_id
+	var visual_profession := "mage" if profession_id in ["mage", "elementalist", "summoner", "frost_sorcerer", "flame_sorcerer", "spirit_master"] else profession_id
+	var class_path := "res://assets/portraits/classes/portrait_%s_%s.png" % [race_id, visual_profession]
+	var race_path := "res://assets/portraits/races/portrait_%s.png" % race_id
+	var family := _portrait_family(profession_id)
+	var generic_class_path := "res://assets/portraits/classes/portrait_%s.png" % family
 	if not profession_id.is_empty() and ResourceLoader.exists(class_path):
 		portrait_texture = load(class_path) as Texture2D
+	elif race_id == "human" and not family.is_empty() and ResourceLoader.exists(generic_class_path):
+		portrait_texture = load(generic_class_path) as Texture2D
 	elif ResourceLoader.exists(race_path):
 		portrait_texture = load(race_path) as Texture2D
 	queue_redraw()
@@ -31,7 +36,12 @@ func _draw() -> void:
 	draw_rect(frame, Color("#111c2b"), true)
 	draw_rect(frame, Color("#f0c76a") if highlighted else Color("#6689a3"), false, 4.0)
 	if portrait_texture != null:
-		draw_texture_rect(portrait_texture, frame.grow(-6.0), false)
+		var available := frame.grow(-6.0)
+		var texture_size := portrait_texture.get_size()
+		var scale_value := minf(available.size.x / texture_size.x, available.size.y / texture_size.y)
+		var draw_size := texture_size * scale_value
+		var draw_rect_value := Rect2(available.position + (available.size - draw_size) * 0.5, draw_size)
+		draw_texture_rect(portrait_texture, draw_rect_value, false)
 		return
 	var palette := _race_palette()
 	var scale := size_value / 16.0
@@ -62,3 +72,12 @@ func _race_palette() -> Dictionary:
 			return {"skin": Color("#d7a978"), "hair": Color("#8e5b38"), "cloth": Color("#596b80")}
 		_:
 			return {"skin": Color("#e1b28a"), "hair": Color("#684936"), "cloth": Color("#3e6c91")}
+
+
+func _portrait_family(profession: String) -> String:
+	match profession:
+		"warrior", "swordsman", "guardian", "blade_master", "iron_protector": return "warrior"
+		"archer", "marksman", "hunter", "imperial_archer": return "archer"
+		"acolyte", "healer", "oracle", "light_priest": return "acolyte"
+		"explorer", "assassin", "stalker", "lethal_shadow": return "explorer"
+	return ""

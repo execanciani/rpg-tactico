@@ -10,6 +10,8 @@ func _run() -> void:
 	_test_combat_rules()
 	_test_structured_command()
 	_test_external_resources()
+	_test_character_selection_assets()
+	_test_mage_visual_assets()
 	_test_height_and_line_of_sight()
 	_test_status_effects()
 	_test_turn_order()
@@ -75,6 +77,35 @@ func _test_external_resources() -> void:
 	var unit := mage.instantiate("test_mage", UnitData.Team.HEROES, Vector2i.ZERO)
 	_expect(unit.abilities.size() == 2 and unit.abilities[0].id == &"ice_lance" and unit.abilities[1].id == &"paralyzing_frost", "Las habilidades .tres no fueron vinculadas al arquetipo.")
 	_expect(mission != null and mission.height_cells.size() > 0, "La misión externa no contiene alturas.")
+
+func _test_character_selection_assets() -> void:
+	var reference := load("res://assets/ui/character_selection/character_selection.png") as Texture2D
+	_expect(reference != null and reference.get_size() == Vector2(1672, 941), "La referencia visual no se importó con sus dimensiones reales.")
+	var expected_sizes := {
+		"human": Vector2(201, 156), "elf": Vector2(200, 156), "dark_elf": Vector2(205, 156),
+		"orc": Vector2(196, 156), "dwarf": Vector2(205, 156),
+	}
+	for race_id in expected_sizes:
+		var portrait := load("res://assets/portraits/races/portrait_%s.png" % race_id) as Texture2D
+		_expect(portrait != null and portrait.get_size() == expected_sizes[race_id], "El retrato extraído de %s falta o fue deformado." % race_id)
+
+func _test_mage_visual_assets() -> void:
+	var sheet := load("res://assets/sprites/characters/mage/mage_spritesheet.png") as Texture2D
+	_expect(sheet != null and sheet.get_size() == Vector2(1536, 1024), "La hoja original del mago no se importó con sus dimensiones reales.")
+	var required_frames := [
+		"idle/front_00.png", "idle/right_00.png", "idle/back_00.png", "idle/left_00.png",
+		"walk/right_00.png", "walk/right_03.png", "attack/right_00.png", "attack/right_03.png",
+		"cast/right_00.png", "cast/right_03.png", "hurt/right_00.png", "hurt/right_02.png",
+		"death/right_00.png", "death/right_03.png",
+	]
+	for relative_path in required_frames:
+		var texture := load("res://assets/sprites/characters/mage/%s" % relative_path) as Texture2D
+		_expect(texture != null and texture.get_size() == Vector2(96, 96), "El fotograma normalizado %s falta o tiene un lienzo incorrecto." % relative_path)
+		if texture != null:
+			_expect(texture.get_image().get_pixel(0, 0).a < 0.05, "El fotograma %s conserva fondo oscuro en la esquina." % relative_path)
+	for effect_name in ["magic_circle_00", "orb_03", "ice_02", "explosion_01"]:
+		_expect(ResourceLoader.exists("res://assets/sprites/characters/mage/effects/%s.png" % effect_name), "Falta el efecto mágico %s." % effect_name)
+	_expect(ResourceLoader.exists("res://assets/portraits/classes/portrait_human_mage.png"), "Falta el retrato específico del mago humano.")
 
 func _test_height_and_line_of_sight() -> void:
 	var heights := {Vector2i(1, 0): 2, Vector2i(0, 1): 1}
@@ -331,8 +362,18 @@ func _test_save_round_trip() -> void:
 	var written := SaveSystem.save_game(source, temporary_path)
 	var loaded := SaveSystem.load_game(temporary_path)
 	_expect(written and int(loaded.get("round", -1)) == 4, "La persistencia real en disco no completó el ciclo guardar/cargar.")
-	if FileAccess.file_exists(temporary_path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary_path))
+	# Un archivo principal corrupto debe poder recuperarse desde la copia de respaldo.
+	_expect(SaveSystem.save_game(source, temporary_path), "No se pudo actualizar un guardado existente con respaldo.")
+	var broken := FileAccess.open(temporary_path, FileAccess.WRITE)
+	if broken != null:
+		broken.store_string("{corrupto")
+		broken.close()
+	var recovered := SaveSystem.load_game(temporary_path)
+	_expect(int(recovered.get("round", -1)) == 4, "No se pudo recuperar el guardado desde el respaldo.")
+	for suffix in ["", SaveSystem.BACKUP_SUFFIX, SaveSystem.TEMP_SUFFIX]:
+		var candidate := temporary_path + suffix
+		if FileAccess.file_exists(candidate):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(candidate))
 
 func _test_complete_battles() -> void:
 	for path in CampaignManager.MISSION_PATHS:
@@ -367,7 +408,7 @@ func _test_main_scene() -> void:
 	var profession_grid := profession_panel.get_child(0) as GridContainer
 	_expect(profession_grid.get_child_count() == 2, "La interfaz no filtró las profesiones reales permitidas para el Orco.")
 	scene.character_selection.creation_overlay.visible = false
-	var created: CharacterProgress = scene.campaign.profile.create_character_auto("Aria", "human", "warrior")
+	var created: CharacterProgress = scene.campaign.profile.create_character_auto("Aria", "human", "mage")
 	scene.character_selection.refresh()
 	_expect(created != null and not scene.character_selection.start_button.disabled, "Un personaje creado no ocupó el espacio ni habilitó la aventura.")
 	scene.character_selection._request_delete(created.character_id)
@@ -379,9 +420,24 @@ func _test_main_scene() -> void:
 	await process_frame
 	_expect(scene.hero_views.size() == 1 and scene.get_node("Units").get_child_count() == 4, "La batalla no se adaptó a una formación de un personaje.")
 	_expect(scene.hero_views[0].data.unit_id == created.character_id and scene.hero_views[0].data.race_id == "human" and scene.hero_views[0].data.abilities.size() == 2, "El combate no utilizó la identidad, raza y habilidades del personaje creado.")
+	var mage_view := scene.hero_views[0] as TacticalUnit
+	_expect(mage_view.mage_visual != null and mage_view.mage_visual.animation == &"idle_front", "El mago humano no apareció con su AnimatedSprite2D en idle.")
+	if mage_view.mage_visual != null:
+		mage_view.mage_visual.facing = "right"
+		mage_view.mage_visual.play_walk()
+		_expect(mage_view.mage_visual.animation == &"walk_right", "No se reprodujo caminar del mago.")
+		await mage_view.mage_visual.play_attack()
+		await mage_view.mage_visual.play_cast()
+		await mage_view.mage_visual.play_hurt()
+		await mage_view.mage_visual.play_death()
+		mage_view.mage_visual.play_idle()
+	var ice_lance: AbilityData = scene.campaign.profile.catalog.ability("ice_lance")
+	await scene._play_mage_projectile_and_impact(mage_view, scene.enemy_views[0], ice_lance)
 	var second: CharacterProgress = scene.campaign.profile.create_character_auto("Nara", "orc", "acolyte")
+	scene.phase = BattleController.Phase.FINISHED
 	scene._start_mission(0, false)
 	await process_frame
+	_expect(scene.phase != BattleController.Phase.FINISHED, "Una misión nueva quedó bloqueada en estado FINISHED.")
 	_expect(second != null and scene.hero_views.size() == 2, "La batalla no se adaptó a una formación de dos personajes.")
 	var third: CharacterProgress = scene.campaign.profile.create_character_auto("Borin", "dwarf", "explorer")
 	scene._start_mission(0, false)

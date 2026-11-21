@@ -4,6 +4,8 @@ extends Node2D
 enum Phase { PLAYER, ENEMY, FINISHED }
 enum SelectionMode { NONE, MOVE, ATTACK, SKILL }
 
+const MAGE_EFFECT_SCENE := preload("res://scenes/presentation/mage_spell_effect.tscn")
+
 @onready var grid: IsometricGrid = $IsometricGrid
 @onready var units_layer: Node2D = $Units
 @onready var effects_layer: Node2D = $Effects
@@ -122,6 +124,12 @@ func _start_mission(index: int, announce := true, begin_turn := true) -> void:
 		return
 	campaign.current_mission_index = clampi(index, 0, campaign.missions.size() - 1)
 	mission = campaign.current_mission()
+	# Al continuar desde una batalla finalizada, restablecer el estado antes de iniciar turnos.
+	phase = Phase.PLAYER
+	selection_mode = SelectionMode.NONE
+	selected_ability = null
+	pending_dialogue = ""
+	progression_open = false
 	_clear_battlefield()
 	grid.configure(mission)
 	tactical_camera.reset_view()
@@ -409,7 +417,10 @@ func _execute_move(command: BattleCommand, path: Array[Vector2i], player_action:
 	if not command.is_valid_for(turn_manager.active_unit_id):
 		return
 	var actor := _unit_by_id(command.actor_id)
-	if actor == null or not actor.data.is_alive() or not grid.is_inside(command.target_cell) or grid.is_blocked(command.target_cell):
+	if actor == null or not actor.data.is_alive() or actor.data.has_moved \
+	or not grid.is_inside(command.target_cell) or grid.is_blocked(command.target_cell):
+		return
+	if actor.data.grid_position == command.target_cell:
 		return
 	var validated_path := GridPathfinder.find_path(
 		actor.data.grid_position, command.target_cell, IsometricGrid.MAP_SIZE,
@@ -466,7 +477,7 @@ func _execute_attack(command: BattleCommand, player_action: bool) -> void:
 		return
 	var actor := _unit_by_id(command.actor_id)
 	var target := _unit_by_id(command.target_unit_id)
-	if actor == null or target == null or not actor.data.is_alive() or not target.data.is_alive():
+	if actor == null or target == null or not actor.data.is_alive() or not target.data.is_alive() or actor.data.has_acted:
 		return
 	if command.type == BattleCommand.Type.USE_ABILITY:
 		await _execute_ability(command, actor, target, player_action)
@@ -501,7 +512,12 @@ func _execute_ability(command: BattleCommand, actor: TacticalUnit, primary_targe
 	input_locked = true
 	actor.data.mp -= ability.mp_cost
 	actor.data.start_ability_cooldown(ability)
-	await actor.play_attack(primary_target.position, ability.damage_type == AbilityData.DamageType.MAGICAL)
+	var show_mage_effects := actor.mage_visual != null and ability.damage_type == AbilityData.DamageType.MAGICAL
+	if show_mage_effects:
+		_play_mage_preparation(actor)
+	await actor.play_attack(primary_target.position, ability.damage_type == AbilityData.DamageType.MAGICAL, true)
+	if show_mage_effects:
+		await _play_mage_projectile_and_impact(actor, primary_target, ability)
 	var affected: Array[TacticalUnit] = []
 	for candidate in unit_views:
 		if not candidate.data.is_alive():
@@ -796,6 +812,26 @@ func _show_floating_damage(target: TacticalUnit, amount: int) -> void:
 	var floating := FloatingText.new()
 	effects_layer.add_child(floating)
 	floating.show_text("-%d" % amount, target.position, Color("#ffebaa"))
+
+func _play_mage_preparation(actor: TacticalUnit) -> void:
+	var effect := MAGE_EFFECT_SCENE.instantiate() as MageSpellEffect
+	effects_layer.add_child(effect)
+	effect.play_once(["magic_circle_00.png"], actor.position + Vector2(0, 8), 6.0, 0.34)
+
+func _play_mage_projectile_and_impact(actor: TacticalUnit, target: TacticalUnit, ability: AbilityData) -> void:
+	var projectile := MAGE_EFFECT_SCENE.instantiate() as MageSpellEffect
+	effects_layer.add_child(projectile)
+	await projectile.travel(
+		["orb_00.png", "orb_01.png", "orb_02.png", "orb_03.png"],
+		actor.position + Vector2(12, -25), target.position + Vector2(0, -22), 0.26, 0.42
+	)
+	var impact := MAGE_EFFECT_SCENE.instantiate() as MageSpellEffect
+	effects_layer.add_child(impact)
+	var ability_id := String(ability.id)
+	if ability_id.contains("ice") or ability_id.contains("frost") or ability_id.contains("glacial"):
+		await impact.play_once(["ice_00.png", "ice_01.png", "ice_02.png"], target.position + Vector2(0, -12), 10.0, 0.48)
+	else:
+		await impact.play_once(["explosion_00.png", "explosion_01.png"], target.position + Vector2(0, -22), 9.0, 0.42)
 
 func _process_status_for_view(view: TacticalUnit) -> void:
 	var events := view.data.process_status_turn()
