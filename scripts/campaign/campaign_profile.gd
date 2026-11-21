@@ -443,9 +443,12 @@ func _sanitize_restored_character(
 		if definition == null or amount <= 0:
 			continue
 		var placed := mini(amount, definition.stack_limit())
+		# Normalizar también el estado del objeto al recuperar partidas antiguas
+		# o modificadas: un valor que no sea Dictionary no debe romper la carga.
+		var saved_state: Variant = slot.get("state", {})
 		progress.inventory_slots[slot_index] = {
 			"index": slot_index, "item_id": definition.item_id, "quantity": placed,
-			"state": slot.get("state", {}).duplicate(true),
+			"state": saved_state.duplicate(true) if saved_state is Dictionary else {},
 		}
 		progress._sync_inventory_cache()
 		var overflow := amount - placed
