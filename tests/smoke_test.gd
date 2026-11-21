@@ -70,6 +70,11 @@ func _test_combat_rules() -> void:
 	defender.magical_defense = 8
 	defender.grid_position = Vector2i(1, 2)
 	_expect(CombatRules.can_basic_attack(attacker, defender), "Un ataque cuerpo a cuerpo válido fue rechazado.")
+	_expect(
+		not CombatRules.can_basic_attack(null, defender)
+		and not CombatRules.can_basic_attack(attacker, null),
+		"Un ataque con unidad inexistente debe rechazarse sin errores."
+	)
 	var damage := CombatRules.basic_attack_damage(attacker, defender)
 	_expect(damage == 9, "El cálculo de daño físico no es determinista o cambió inesperadamente.")
 	var applied := CombatRules.apply_damage(defender, damage)
@@ -355,6 +360,31 @@ func _test_turn_order() -> void:
 	fast_b.hp = 0
 	manager.complete_active_turn(units)
 	_expect(not manager.order.has("fast_b"), "Una unidad derrotada permaneció en la cola de iniciativa.")
+	# Al restaurar una partida, ignorar IDs duplicados, muertos o desconocidos
+	# sin omitir unidades vivas que faltan en el snapshot.
+	var restored_manager := TurnManager.new()
+	restored_manager.restore({
+		"round": 3,
+		"order": ["fast_a", "fast_a", "deleted_unit", "fast_b"],
+		"acted_ids": ["fast_a", "fast_a", "unknown"],
+		"active_unit_id": "fast_a",
+	}, units)
+	_expect(
+		restored_manager.order == ["fast_a", "slow"]
+		and restored_manager.acted_ids == ["fast_a"]
+		and restored_manager.active_unit_id == "slow",
+		"La restauración de iniciativa no reparó IDs inválidos o duplicados."
+	)
+	restored_manager.restore({
+		"round": 7, "order": ["slow"], "acted_ids": ["slow", "fast_a"],
+		"active_unit_id": "",
+	}, units)
+	_expect(
+		restored_manager.round_number == 8
+		and restored_manager.acted_ids.is_empty()
+		and restored_manager.active_unit_id == "fast_a",
+		"Una ronda completamente actuada quedó bloqueada al restaurar."
+	)
 
 func _test_abilities_and_cooldowns() -> void:
 	var warrior_archetype := load("res://data/archetypes/hero_warrior.tres") as UnitArchetype
