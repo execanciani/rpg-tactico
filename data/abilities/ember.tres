@@ -11,3 +11,5 @@ mp_cost = 4
 range_cells = 3
 power = 5
 damage_type = 1
+status_effect_path = "res://data/status_effects/burning.tres"
+status_chance = 1.0

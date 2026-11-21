@@ -28,6 +28,9 @@ var battle_won := false
 var enemy_ai := EnemyAI.new()
 var campaign := CampaignManager.new()
 var mission: MissionData
+var pending_dialogue := ""
+var reward_messages: Array[String] = []
+var rewards_awarded := false
 
 func _ready() -> void:
 	grid.cell_pressed.connect(_on_cell_pressed)
@@ -35,9 +38,12 @@ func _ready() -> void:
 	ui.attack_requested.connect(_on_attack_requested)
 	ui.skill_requested.connect(_on_skill_requested)
 	ui.wait_requested.connect(_on_wait_requested)
+	ui.item_requested.connect(_on_item_requested)
+	ui.item_selected.connect(_on_item_selected)
 	ui.save_requested.connect(_on_save_requested)
 	ui.load_requested.connect(_on_load_requested)
 	ui.continue_requested.connect(_on_continue_requested)
+	ui.dialogue_finished.connect(_on_dialogue_finished)
 	campaign.load_catalog()
 	_start_mission(campaign.current_mission_index)
 
@@ -52,6 +58,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_skill_requested()
 	elif event.is_action_pressed("action_wait"):
 		_on_wait_requested()
+	elif event.is_action_pressed("action_item"):
+		_on_item_requested()
 	elif event.is_action_pressed("ui_cancel"):
 		_set_selection_mode(SelectionMode.NONE)
 
@@ -68,7 +76,10 @@ func _start_mission(index: int, announce := true) -> void:
 		var archetype := load(HERO_ARCHETYPE_PATHS[hero_index]) as UnitArchetype
 		if archetype == null or hero_index >= mission.hero_positions.size():
 			continue
-		_spawn_unit(archetype.instantiate(archetype.archetype_id, UnitData.Team.HEROES, mission.hero_positions[hero_index]))
+		var hero := archetype.instantiate(archetype.archetype_id, UnitData.Team.HEROES, mission.hero_positions[hero_index])
+		campaign.profile.apply_to_hero(hero)
+		hero.xp_to_next = campaign.profile.xp_required(hero.level)
+		_spawn_unit(hero)
 	for enemy_index in mission.enemy_archetype_paths.size():
 		if enemy_index >= mission.enemy_positions.size():
 			break
@@ -79,11 +90,18 @@ func _start_mission(index: int, announce := true) -> void:
 		_spawn_unit(archetype.instantiate(unit_id, UnitData.Team.ENEMIES, mission.enemy_positions[enemy_index]))
 	round_number = 1
 	battle_won = false
+	rewards_awarded = false
+	reward_messages.clear()
 	input_locked = false
 	ui.hide_result()
-	ui.set_mission(mission.title, campaign.current_mission_index + 1, campaign.missions.size())
+	ui.set_mission(mission.title, campaign.current_mission_index + 1, campaign.missions.size(), campaign.profile.gold)
+	ui.set_objective(mission.objective_text)
 	_start_player_round(false)
 	ui.set_hint(mission.briefing)
+	if announce and not mission.intro_dialogue.is_empty():
+		pending_dialogue = "intro"
+		input_locked = true
+		ui.show_dialogue(mission.intro_dialogue)
 	if announce:
 		ui.show_message("Misión: %s" % mission.title, Color("#9fe0bd"))
 
@@ -164,7 +182,7 @@ func _on_move_requested() -> void:
 		return
 	_set_selection_mode(SelectionMode.MOVE)
 	var reachable := GridPathfinder.reachable_cells(
-		selected_unit.data.grid_position, selected_unit.data.move_range,
+		selected_unit.data.grid_position, selected_unit.data.effective_move_range(),
 		IsometricGrid.MAP_SIZE, grid.blocked_cells, _occupied_cells(),
 		grid.height_cells, selected_unit.data.max_climb
 	)
@@ -200,6 +218,36 @@ func _on_wait_requested() -> void:
 	ui.show_message("%s espera." % selected_unit.data.display_name, Color("#d7dde0"))
 	_finish_player_action()
 
+func _on_item_requested() -> void:
+	if not _selection_can_act():
+		return
+	var entries := campaign.profile.inventory.list_available_for(selected_unit.data)
+	if entries.is_empty():
+		ui.show_message("No hay objetos utilizables para esta unidad.", Color("#ffcf88"))
+		return
+	ui.show_inventory(entries, selected_unit.data)
+
+func _on_item_selected(item_id: String) -> void:
+	if not _selection_can_act():
+		ui.hide_inventory()
+		return
+	var item := campaign.profile.inventory.get_item(item_id)
+	if item == null:
+		return
+	var success := false
+	if item.type == ItemData.Type.CONSUMABLE:
+		success = campaign.profile.inventory.consume(selected_unit.data, item_id)
+	else:
+		success = campaign.profile.inventory.equip_item(selected_unit.data, item_id)
+	if not success:
+		ui.show_message("El objeto no puede usarse ahora.", Color("#ffcf88"))
+		return
+	ui.hide_inventory()
+	selected_unit.data.has_acted = true
+	selected_unit.refresh()
+	ui.show_message("%s usa %s." % [selected_unit.data.display_name, item.display_name], Color("#9fe0bd"))
+	_finish_player_action()
+
 func _set_selection_mode(mode: SelectionMode) -> void:
 	selection_mode = mode
 	grid.clear_highlights()
@@ -229,7 +277,7 @@ func _try_move_to(cell: Vector2i) -> void:
 		return
 	var path := GridPathfinder.find_path(
 		selected_unit.data.grid_position, cell, IsometricGrid.MAP_SIZE,
-		grid.blocked_cells, _occupied_cells(), selected_unit.data.move_range,
+		grid.blocked_cells, _occupied_cells(), selected_unit.data.effective_move_range(),
 		grid.height_cells, selected_unit.data.max_climb
 	)
 	if path.is_empty():
@@ -250,6 +298,8 @@ func _execute_move(command: BattleCommand, path: Array[Vector2i], player_action:
 	actor.data.has_moved = true
 	actor.refresh()
 	input_locked = false
+	if player_action and _check_battle_result():
+		return
 	if player_action and selected_unit == actor:
 		selection_mode = SelectionMode.NONE
 		grid.set_selected(actor.data.grid_position)
@@ -287,6 +337,11 @@ func _execute_attack(command: BattleCommand, player_action: bool) -> void:
 		actor.data.mp -= ability.mp_cost
 		damage = CombatRules.ability_damage(actor.data, target.data, ability, grid.height_cells)
 		action_name = ability.display_name
+		if not ability.status_effect_path.is_empty() and _status_roll_succeeds(actor.data, target.data, ability):
+			var status := load(ability.status_effect_path) as StatusEffectData
+			if status != null:
+				target.data.add_status(status)
+				action_name += " + %s" % status.display_name
 	else:
 		if not CombatRules.can_basic_attack(actor.data, target.data, grid.height_cells, grid.blocked_cells):
 			return
@@ -321,6 +376,12 @@ func _run_enemy_turn() -> void:
 	ui.set_hint("Los enemigos están decidiendo sus acciones…")
 	await get_tree().create_timer(0.45).timeout
 	for enemy in enemy_views:
+		if enemy.data.is_alive():
+			enemy.data.begin_turn()
+			_process_status_for_view(enemy)
+	if _check_battle_result():
+		return
+	for enemy in enemy_views:
 		if phase == Phase.FINISHED:
 			return
 		if not enemy.data.is_alive():
@@ -331,14 +392,14 @@ func _run_enemy_turn() -> void:
 		var attack_command := enemy_ai.choose_attack(enemy.data, target, grid.height_cells, grid.blocked_cells)
 		if attack_command == null:
 			var reachable := GridPathfinder.reachable_cells(
-				enemy.data.grid_position, enemy.data.move_range, IsometricGrid.MAP_SIZE,
+				enemy.data.grid_position, enemy.data.effective_move_range(), IsometricGrid.MAP_SIZE,
 				grid.blocked_cells, _occupied_cells(), grid.height_cells, enemy.data.max_climb
 			)
 			var destination := enemy_ai.choose_destination(enemy.data, target, reachable)
 			if destination != enemy.data.grid_position:
 				var path := GridPathfinder.find_path(
 					enemy.data.grid_position, destination, IsometricGrid.MAP_SIZE,
-					grid.blocked_cells, _occupied_cells(), enemy.data.move_range,
+					grid.blocked_cells, _occupied_cells(), enemy.data.effective_move_range(),
 					grid.height_cells, enemy.data.max_climb
 				)
 				await _execute_move(BattleCommand.move(enemy.data.unit_id, destination), path, false)
@@ -351,33 +412,66 @@ func _run_enemy_turn() -> void:
 		enemy.refresh()
 		await get_tree().create_timer(0.18).timeout
 	if phase != Phase.FINISHED:
+		if _check_battle_result(true):
+			return
 		round_number += 1
 		_start_player_round(true)
 
 func _start_player_round(show_message: bool) -> void:
 	phase = Phase.PLAYER
-	for view in unit_views:
-		if view.data.is_alive():
-			view.data.begin_turn()
-			view.refresh()
+	for hero in hero_views:
+		if hero.data.is_alive():
+			hero.data.begin_turn()
+			_process_status_for_view(hero)
+	if not hero_views.any(func(view: TacticalUnit): return view.data.is_alive()):
+		_check_battle_result()
+		return
 	ui.set_turn(round_number, true)
 	ui.configure_actions(null, false)
 	if show_message:
 		ui.show_message("Comienza la ronda %d" % round_number, Color("#ffe29a"))
 	ui.set_hint("Seleccioná una unidad azul")
 
-func _check_battle_result() -> bool:
+func _check_battle_result(allow_survival := false) -> bool:
 	var heroes_alive := hero_views.any(func(view: TacticalUnit): return view.data.is_alive())
 	var enemies_alive := enemy_views.any(func(view: TacticalUnit): return view.data.is_alive())
-	if heroes_alive and enemies_alive:
+	if not heroes_alive:
+		battle_won = false
+	elif not enemies_alive:
+		battle_won = true
+	elif mission.objective_type == MissionData.ObjectiveType.REACH_CELL:
+		battle_won = hero_views.any(func(view: TacticalUnit): return view.data.is_alive() and view.data.grid_position == mission.objective_cell)
+	elif mission.objective_type == MissionData.ObjectiveType.SURVIVE_ROUNDS and allow_survival:
+		battle_won = round_number >= mission.survive_rounds
+	else:
+		battle_won = false
+	if heroes_alive and enemies_alive and not battle_won:
 		return false
 	phase = Phase.FINISHED
 	input_locked = true
-	battle_won = heroes_alive
 	_clear_selection_visuals()
 	ui.configure_actions(null, false)
-	ui.show_result(battle_won, round_number, campaign.has_next_mission())
+	if battle_won and not rewards_awarded:
+		reward_messages = campaign.profile.award_mission(mission, _hero_data())
+		rewards_awarded = true
+	if battle_won and not mission.victory_dialogue.is_empty():
+		pending_dialogue = "victory"
+		ui.show_dialogue(mission.victory_dialogue)
+	else:
+		_present_result()
 	return true
+
+func _present_result() -> void:
+	ui.show_result(battle_won, round_number, campaign.has_next_mission(), reward_messages)
+
+func _on_dialogue_finished() -> void:
+	if pending_dialogue == "intro":
+		pending_dialogue = ""
+		input_locked = false
+		ui.set_hint(mission.objective_text)
+	elif pending_dialogue == "victory":
+		pending_dialogue = ""
+		_present_result()
 
 func _on_continue_requested() -> void:
 	if not battle_won:
@@ -386,6 +480,7 @@ func _on_continue_requested() -> void:
 		_start_mission(campaign.current_mission_index)
 	else:
 		campaign.current_mission_index = 0
+		campaign.profile.initialize_default()
 		_start_mission(0)
 
 func _on_save_requested() -> void:
@@ -395,6 +490,7 @@ func _on_save_requested() -> void:
 	var success := SaveSystem.save_game({
 		"mission_index": campaign.current_mission_index,
 		"round": round_number,
+		"profile": campaign.profile.make_snapshot(),
 		"units": unit_views.map(func(view: TacticalUnit): return view.data.make_snapshot()),
 	})
 	ui.show_message("Partida guardada." if success else "No se pudo guardar la partida.", Color("#9fe0bd") if success else Color("#ff8d86"))
@@ -407,6 +503,7 @@ func _on_load_requested() -> void:
 		ui.show_message("No hay una partida guardada válida.", Color("#ffcf88"))
 		return
 	var mission_index := int(payload.get("mission_index", 0))
+	campaign.profile.restore(payload.get("profile", {}))
 	_start_mission(mission_index, false)
 	round_number = maxi(1, int(payload.get("round", 1)))
 	for snapshot_value in payload.get("units", []):
@@ -421,6 +518,7 @@ func _on_load_requested() -> void:
 		view.data.elevation = grid.get_height(view.data.grid_position)
 		view.data.has_moved = bool(snapshot.get("has_moved", false))
 		view.data.has_acted = bool(snapshot.get("has_acted", false))
+		view.data.active_statuses.assign(snapshot.get("active_statuses", []))
 		view.position = grid.grid_to_world(view.data.grid_position) + Vector2(0, -9)
 		view.visible = view.data.is_alive()
 		view.refresh()
@@ -473,3 +571,19 @@ func _show_floating_damage(target: TacticalUnit, amount: int) -> void:
 	var floating := FloatingText.new()
 	effects_layer.add_child(floating)
 	floating.show_text("-%d" % amount, target.position, Color("#ffebaa"))
+
+func _process_status_for_view(view: TacticalUnit) -> void:
+	var events := view.data.process_status_turn()
+	for event in events:
+		_show_floating_damage(view, int(event.damage))
+		ui.show_message("%s sufre %d por %s" % [view.data.display_name, int(event.damage), str(event.name)], event.color)
+	view.refresh()
+	if not view.data.is_alive():
+		view.play_defeat()
+
+func _status_roll_succeeds(actor: UnitData, target: UnitData, ability: AbilityData) -> bool:
+	if ability.status_chance >= 1.0:
+		return true
+	var seed_text := "%s:%s:%s:%d" % [actor.unit_id, target.unit_id, ability.id, round_number]
+	var normalized := float(absi(hash(seed_text)) % 10000) / 10000.0
+	return normalized < ability.status_chance

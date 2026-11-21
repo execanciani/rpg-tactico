@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="StatusEffectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/status_effect_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+effect_id = "chilled"
+display_name = "Escarcha"
+description = "Reduce el movimiento durante dos turnos."
+duration_turns = 2
+move_modifier = -1
+color = Color(0.45, 0.8, 1, 1)

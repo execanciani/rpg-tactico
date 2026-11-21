@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="StatusEffectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/status_effect_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+effect_id = "burning"
+display_name = "Quemadura"
+description = "Inflige daño al comienzo del turno."
+duration_turns = 2
+damage_per_turn = 3
+color = Color(1, 0.42, 0.2, 1)

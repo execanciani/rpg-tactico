@@ -10,6 +10,8 @@ enum DamageType { PHYSICAL, MAGICAL }
 @export var range_cells := 1
 @export var power := 0
 @export var damage_type: DamageType = DamageType.PHYSICAL
+@export_file("*.tres") var status_effect_path := ""
+@export_range(0.0, 1.0) var status_chance := 1.0
 
 static func create(
 	ability_id: StringName,

@@ -2,7 +2,7 @@ class_name SaveSystem
 extends RefCounted
 
 const SAVE_PATH := "user://campaign_save.json"
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 
 static func save_game(payload: Dictionary, path := SAVE_PATH) -> bool:
 	var file := FileAccess.open(path, FileAccess.WRITE)

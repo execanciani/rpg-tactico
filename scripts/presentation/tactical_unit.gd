@@ -79,6 +79,12 @@ func _draw() -> void:
 		draw_circle(Vector2(16, -23), 6.0, Color("#2c333d"))
 		draw_line(Vector2(13, -23), Vector2(15, -20), Color("#d5dae0"), 2.0)
 		draw_line(Vector2(15, -20), Vector2(20, -26), Color("#d5dae0"), 2.0)
+	for index in mini(3, data.active_statuses.size()):
+		var entry: Dictionary = data.active_statuses[index]
+		var effect := load(str(entry.get("path", ""))) as StatusEffectData
+		if effect != null:
+			draw_circle(Vector2(-14 + index * 14, -45), 5.0, effect.color)
+			draw_arc(Vector2(-14 + index * 14, -45), 5.0, 0, TAU, 12, Color("#17222c"), 1.5)
 
 func _draw_class_details(accent: Color) -> void:
 	match data.class_name_text:

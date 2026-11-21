@@ -14,6 +14,7 @@ var blocked_cells: Dictionary = {}
 var height_cells: Dictionary = {}
 var highlighted_cells: Dictionary = {}
 var selected_cell := Vector2i(-1, -1)
+var objective_cell := Vector2i(-1, -1)
 
 func _ready() -> void:
 	queue_redraw()
@@ -21,6 +22,7 @@ func _ready() -> void:
 func configure(mission: MissionData) -> void:
 	blocked_cells = mission.blocked_map()
 	height_cells = mission.height_map()
+	objective_cell = mission.objective_cell if mission.objective_type == MissionData.ObjectiveType.REACH_CELL else Vector2i(-1, -1)
 	highlighted_cells.clear()
 	selected_cell = Vector2i(-1, -1)
 	queue_redraw()
@@ -122,6 +124,9 @@ func _draw_cell(cell: Vector2i) -> void:
 		color = color.lightened(0.045)
 	draw_colored_polygon(diamond, color)
 	draw_polyline(PackedVector2Array([diamond[0], diamond[1], diamond[2], diamond[3], diamond[0]]), Color("#263b35"), 1.5, true)
+	if cell == objective_cell:
+		draw_colored_polygon(diamond, Color(1.0, 0.78, 0.2, 0.55))
+		draw_polyline(PackedVector2Array([diamond[0], diamond[1], diamond[2], diamond[3], diamond[0]]), Color("#fff0a0"), 3.0, true)
 	if highlighted_cells.has(cell):
 		var highlight_type: Highlight = highlighted_cells[cell]
 		var highlight_color := Color(0.18, 0.72, 1.0, 0.52)

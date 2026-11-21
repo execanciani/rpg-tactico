@@ -11,6 +11,10 @@ func _run() -> void:
 	_test_structured_command()
 	_test_external_resources()
 	_test_height_and_line_of_sight()
+	_test_inventory_and_equipment()
+	_test_status_effects()
+	_test_campaign_progression()
+	_test_mission_objectives_and_dialogue()
 	_test_save_round_trip()
 	_test_complete_battles()
 	await _test_main_scene()
@@ -73,8 +77,61 @@ func _test_height_and_line_of_sight() -> void:
 	_expect(not CombatRules.has_line_of_sight(Vector2i.ZERO, Vector2i(0, 3), {}, {Vector2i(0, 1): true}), "Un obstáculo no bloqueó la línea de visión.")
 	_expect(CombatRules.has_line_of_sight(Vector2i.ZERO, Vector2i(0, 3), {}, {}), "Una línea de visión despejada fue rechazada.")
 
+func _test_inventory_and_equipment() -> void:
+	var inventory := InventoryState.new()
+	inventory.initialize_default()
+	var archetype := load("res://data/archetypes/hero_warrior.tres") as UnitArchetype
+	var warrior := archetype.instantiate("hero_warrior", UnitData.Team.HEROES, Vector2i.ZERO)
+	inventory.apply_equipment(warrior)
+	_expect(warrior.physical_attack == 17 and warrior.max_hp == 54, "El equipo inicial no aplicó sus bonificaciones.")
+	warrior.hp = 20
+	var previous_quantity := inventory.quantity("health_potion")
+	_expect(inventory.consume(warrior, "health_potion"), "No se pudo consumir una poción válida.")
+	_expect(warrior.hp == 38 and inventory.quantity("health_potion") == previous_quantity - 1, "El consumible no restauró HP o no descontó inventario.")
+	var archer_archetype := load("res://data/archetypes/hero_archer.tres") as UnitArchetype
+	var archer := archer_archetype.instantiate("hero_archer", UnitData.Team.HEROES, Vector2i.ZERO)
+	_expect(not inventory.equip_item(archer, "guard_armor"), "Una única armadura pudo equiparse simultáneamente en dos héroes.")
+
+func _test_status_effects() -> void:
+	var unit := UnitData.new()
+	unit.hp = 20
+	unit.max_hp = 20
+	unit.move_range = 4
+	var chilled := load("res://data/status_effects/chilled.tres") as StatusEffectData
+	var burning := load("res://data/status_effects/burning.tres") as StatusEffectData
+	unit.add_status(chilled)
+	unit.add_status(burning)
+	_expect(unit.effective_move_range() == 3, "Escarcha no redujo el movimiento efectivo.")
+	unit.process_status_turn()
+	_expect(unit.hp == 17, "Quemadura no infligió daño por turno.")
+	unit.process_status_turn()
+	_expect(unit.active_statuses.is_empty(), "Los estados no expiraron al completar su duración.")
+
+func _test_campaign_progression() -> void:
+	var profile := CampaignProfile.new()
+	profile.initialize_default()
+	var archetype := load("res://data/archetypes/hero_warrior.tres") as UnitArchetype
+	var hero := archetype.instantiate("hero_warrior", UnitData.Team.HEROES, Vector2i.ZERO)
+	var heroes: Array[UnitData] = [hero]
+	profile.award_mission(load("res://data/missions/mission_01.tres") as MissionData, heroes)
+	profile.award_mission(load("res://data/missions/mission_02.tres") as MissionData, heroes)
+	var advanced := archetype.instantiate("hero_warrior", UnitData.Team.HEROES, Vector2i.ZERO)
+	profile.apply_to_hero(advanced)
+	_expect(advanced.level == 2 and advanced.max_hp == 58, "La experiencia o el equipo persistente no produjeron estadísticas válidas.")
+	_expect(profile.gold == 65, "Las recompensas monetarias no persistieron.")
+
+func _test_mission_objectives_and_dialogue() -> void:
+	var extraction := load("res://data/missions/mission_02.tres") as MissionData
+	var survival := load("res://data/missions/mission_03.tres") as MissionData
+	_expect(extraction.objective_type == MissionData.ObjectiveType.REACH_CELL and extraction.objective_cell == Vector2i(11, 6), "La misión de extracción no está configurada.")
+	_expect(survival.objective_type == MissionData.ObjectiveType.SURVIVE_ROUNDS and survival.survive_rounds == 5, "La misión de supervivencia no está configurada.")
+	_expect(not extraction.intro_dialogue.is_empty() and not survival.victory_dialogue.is_empty(), "Faltan diálogos de campaña externos.")
+
 func _test_save_round_trip() -> void:
 	var source := {"mission_index": 1, "round": 4, "units": [{"unit_id": "hero_mage", "hp": 17}]}
+	var profile := CampaignProfile.new()
+	profile.initialize_default()
+	source["profile"] = profile.make_snapshot()
 	var restored := SaveSystem.decode_payload(SaveSystem.encode_payload(source))
 	_expect(int(restored.get("mission_index", -1)) == 1, "El guardado perdió el progreso de campaña.")
 	_expect(int(restored.get("round", -1)) == 4, "El guardado perdió la ronda actual.")

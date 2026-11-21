@@ -10,9 +10,13 @@ const HERO_PATHS: Array[String] = [
 static func simulate_mission(mission: MissionData, maximum_rounds := 80) -> Dictionary:
 	var heroes: Array[UnitData] = []
 	var enemies: Array[UnitData] = []
+	var profile := CampaignProfile.new()
+	profile.initialize_default()
 	for index in mini(HERO_PATHS.size(), mission.hero_positions.size()):
 		var archetype := load(HERO_PATHS[index]) as UnitArchetype
-		heroes.append(archetype.instantiate(archetype.archetype_id, UnitData.Team.HEROES, mission.hero_positions[index]))
+		var hero := archetype.instantiate(archetype.archetype_id, UnitData.Team.HEROES, mission.hero_positions[index])
+		profile.apply_to_hero(hero)
+		heroes.append(hero)
 	for index in mini(mission.enemy_archetype_paths.size(), mission.enemy_positions.size()):
 		var archetype := load(mission.enemy_archetype_paths[index]) as UnitArchetype
 		enemies.append(archetype.instantiate("enemy_%02d" % index, UnitData.Team.ENEMIES, mission.enemy_positions[index]))
@@ -23,11 +27,13 @@ static func simulate_mission(mission: MissionData, maximum_rounds := 80) -> Dict
 	for round_index in maximum_rounds:
 		completed_rounds = round_index + 1
 		actions += _run_team(heroes, enemies, heroes, enemies, heights, blocked)
-		if not enemies.any(func(unit: UnitData): return unit.is_alive()):
+		if _heroes_completed_objective(mission, heroes, enemies, completed_rounds, false):
 			return {"finished": true, "winner": UnitData.Team.HEROES, "rounds": completed_rounds, "actions": actions}
 		actions += _run_team(enemies, heroes, heroes, enemies, heights, blocked)
 		if not heroes.any(func(unit: UnitData): return unit.is_alive()):
 			return {"finished": true, "winner": UnitData.Team.ENEMIES, "rounds": completed_rounds, "actions": actions}
+		if _heroes_completed_objective(mission, heroes, enemies, completed_rounds, true):
+			return {"finished": true, "winner": UnitData.Team.HEROES, "rounds": completed_rounds, "actions": actions}
 	return {"finished": false, "winner": -1, "rounds": completed_rounds, "actions": actions}
 
 static func _run_team(
@@ -42,12 +48,16 @@ static func _run_team(
 	for actor in team:
 		if not actor.is_alive():
 			continue
+		actor.begin_turn()
+		actor.process_status_turn()
+		if not actor.is_alive():
+			continue
 		var target := _nearest_target(actor, opponents)
 		if target == null:
 			break
 		if not _can_attack(actor, target, heights, blocked):
 			var reachable := GridPathfinder.reachable_cells(
-				actor.grid_position, actor.move_range, IsometricGrid.MAP_SIZE,
+				actor.grid_position, actor.effective_move_range(), IsometricGrid.MAP_SIZE,
 				blocked, _occupied(heroes, enemies), heights, actor.max_climb
 			)
 			var destination := _best_destination(actor, target, reachable, heights, blocked)
@@ -65,6 +75,8 @@ static func _apply_best_attack(actor: UnitData, target: UnitData, heights: Dicti
 		if CombatRules.can_use_ability(actor, target, ability, heights, blocked):
 			actor.mp -= ability.mp_cost
 			CombatRules.apply_damage(target, CombatRules.ability_damage(actor, target, ability, heights))
+			if not ability.status_effect_path.is_empty() and target.is_alive():
+				target.add_status(load(ability.status_effect_path) as StatusEffectData)
 			return true
 	if CombatRules.can_basic_attack(actor, target, heights, blocked):
 		CombatRules.apply_damage(target, CombatRules.basic_attack_damage(actor, target, heights))
@@ -110,3 +122,18 @@ static func _occupied(heroes: Array[UnitData], enemies: Array[UnitData]) -> Dict
 		if unit.is_alive():
 			result[unit.grid_position] = true
 	return result
+
+static func _heroes_completed_objective(
+	mission: MissionData,
+	heroes: Array[UnitData],
+	enemies: Array[UnitData],
+	round_number: int,
+	after_enemy_turn: bool
+) -> bool:
+	if not enemies.any(func(unit: UnitData): return unit.is_alive()):
+		return true
+	if mission.objective_type == MissionData.ObjectiveType.REACH_CELL:
+		return heroes.any(func(unit: UnitData): return unit.is_alive() and unit.grid_position == mission.objective_cell)
+	if mission.objective_type == MissionData.ObjectiveType.SURVIVE_ROUNDS:
+		return after_enemy_turn and round_number >= mission.survive_rounds
+	return false

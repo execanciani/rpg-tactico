@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/item_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+item_id = "guard_armor"
+display_name = "Coraza de guardia"
+description = "+6 HP y +2 defensa física."
+type = 2
+allowed_classes = Array[String](["Guerrero", "Arquero"])
+max_hp_bonus = 6
+physical_defense_bonus = 2

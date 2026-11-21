@@ -1,73 +1,90 @@
-# RPG Táctico Isométrico — prototipo
+# RPG Táctico Isométrico — prototipo fase 3
 
-Prototipo offline realizado con Godot 4.7.2 y GDScript. Todo el arte visible se dibuja con primitivas del motor, por lo que no depende de recursos externos ni licencias de terceros.
+Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera con primitivas propias del motor y no utiliza recursos externos con licencias de terceros.
 
 ## Ejecutar
 
 1. Abrí `project.godot` con Godot 4.7.2.
 2. Presioná **F6/F5** o **Ejecutar proyecto**.
-3. Seleccioná una unidad azul y elegí **Mover**, **Atacar**, **Habilidad** o **Esperar**.
+3. Avanzá los diálogos y seleccioná una unidad azul.
 
 ### Controles
 
 - `M`: mover.
 - `A`: atacar.
 - `S`: habilidad.
+- `I`: objetos y equipo.
 - `W` o `Espacio`: esperar.
 - `Esc`: cancelar el modo actual.
 - Flechas: desplazar la cámara.
 - Botón central/derecho y arrastre: desplazar la cámara.
 - Rueda: zoom.
-- Android: toque para seleccionar; gesto de dos dedos para desplazar y ampliar.
+- Android: toque para seleccionar y gesto de dos dedos para desplazar o ampliar.
 
-Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. Sólo se guarda durante el turno del jugador para evitar estados intermedios de animaciones o IA.
+## Sistemas implementados
 
-## Campaña
+### Combate
 
-La campaña contiene tres encuentros consecutivos:
+- Mapa isométrico 12 × 12 con alturas y obstáculos.
+- Movimiento con coste vertical y límite de escalada por clase.
+- Línea de visión bloqueada por rocas y crestas.
+- Daño físico y mágico con bonificación por altura.
+- Escarcha: reduce temporalmente el movimiento.
+- Quemadura: causa daño al comienzo del turno.
 
-1. **Las ruinas de la frontera**: introducción a desniveles y obstáculos.
-2. **El paso quebrado**: crestas de hasta dos niveles y cuatro enemigos.
-3. **La cumbre de las runas**: asalto final con cinco enemigos.
+### Progresión
 
-Tras una victoria se habilita la siguiente misión. Una derrota permite reiniciar el encuentro actual; al completar la última misión se puede reiniciar la campaña.
+- Experiencia y niveles persistentes.
+- Mejoras de HP, MP, ataque y defensa al subir de nivel.
+- Monedas y recompensas por misión.
+- Inventario persistente con consumibles, armas y armadura.
+- Equipo restringido por clase y aplicado en las siguientes misiones.
 
-## Altura y línea de visión
+### Campaña
 
-- Cada casilla puede tener una altura lógica independiente.
-- Subir o bajar consume `1 + diferencia de altura` puntos de movimiento.
-- Las unidades tienen un límite `max_climb`; arquero y explorador pueden salvar dos niveles.
-- La distancia vertical afecta el alcance efectivo.
-- Atacar desde una posición superior añade daño; hacerlo desde abajo lo reduce.
-- Rocas y crestas que superan la trayectoria bloquean ataques y habilidades.
+La campaña contiene tres tipos de objetivo:
+
+1. Eliminar a todos los enemigos.
+2. Alcanzar una casilla de extracción dorada.
+3. Sobrevivir una cantidad determinada de rondas.
+
+Cada misión tiene briefing, diálogo introductorio, diálogo de victoria y recompensas configurados desde recursos `.tres`.
+
+### Guardado
+
+Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 3 conserva:
+
+- Misión y ronda actual.
+- HP, MP, posiciones y estados alterados.
+- Nivel y experiencia de los héroes.
+- Oro, inventario, equipo y misiones completadas.
+
+Sólo se guarda durante el turno del jugador para evitar estados intermedios de animaciones o IA.
 
 ## Arquitectura
 
-- `data/abilities`: habilidades editables como recursos `.tres`.
-- `data/archetypes`: estadísticas y profesiones editables como `.tres`.
-- `data/missions`: formaciones, alturas y obstáculos de cada encuentro.
-- `scripts/domain`: modelos de unidades, habilidades, arquetipos y misiones.
-- `scripts/core`: comandos serializables, reglas, controlador y simulador determinista.
-- `scripts/grid`: conversión isométrica y navegación con coste vertical.
-- `scripts/campaign`: progreso entre encuentros.
+- `data/abilities`: habilidades y estados aplicados.
+- `data/archetypes`: estadísticas base de héroes y enemigos.
+- `data/items`: consumibles y equipo.
+- `data/status_effects`: escarcha y quemadura.
+- `data/missions`: mapa, objetivo, diálogo y recompensas.
+- `scripts/domain`: recursos y estado de unidades, objetos e inventario.
+- `scripts/core`: reglas, comandos, controlador y simulador determinista.
+- `scripts/campaign`: catálogo de misiones y perfil persistente.
+- `scripts/grid`: mapa isométrico y navegación con altura.
 - `scripts/persistence`: guardado JSON versionado.
-- `scripts/ai`: decisiones de los enemigos.
 - `scripts/presentation`: cámara, unidades procedurales y efectos.
-- `scripts/ui`: interfaz adaptable para mouse y pantalla táctil.
-- `tests`: pruebas automáticas sin interfaz gráfica.
-
-La UI emite intenciones y el controlador las convierte en `BattleCommand`. Las reglas no dependen de nodos visuales, y los comandos pueden serializarse para una futura capa de red autoritativa.
+- `scripts/ui`: HUD, inventario, diálogos y resultados.
+- `tests`: pruebas automáticas de sistemas y combates completos.
 
 ## Pruebas
-
-Desde PowerShell, ajustando la ruta del ejecutable si fuera necesario:
 
 ```powershell
 & 'C:\ruta\a\Godot_v4.7.2-stable_win64_console.exe' --headless --path . --script res://tests/smoke_test.gd
 ```
 
-Las pruebas comprueban recursos externos, navegación con altura, límites de escalada, línea de visión, daño, serialización de guardado, carga de la escena y simulaciones completas de las tres misiones.
+La prueba cubre recursos externos, navegación, altura, visión, inventario, equipo, consumibles, estados, experiencia, recompensas, objetivos, diálogos, guardado real temporal, carga de escena y simulaciones completas de las tres misiones.
 
 ## Alcance pendiente
 
-Quedan fuera por ahora inventario, equipo, progresión entre misiones, diálogos, objetivos distintos de eliminar enemigos, efectos de estado, animaciones con sprites definitivos, audio y multijugador.
+Quedan para fases posteriores una pantalla de gestión entre misiones, tiendas, árboles de habilidades, más objetos y estados, objetivos con múltiples etapas, sprites y animaciones definitivas, audio, localización y multijugador.
