@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"precise_arrow"
+display_name = "Flecha precisa"
+description = "Disparo de gran alcance con daño físico aumentado."
+mp_cost = 3
+range_cells = 6
+power = 5
+cooldown_turns = 1

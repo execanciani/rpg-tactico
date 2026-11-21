@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"powerful_strike"
+display_name = "Golpe poderoso"
+description = "Ataque físico cuerpo a cuerpo de gran potencia."
+mp_cost = 3
+range_cells = 1
+power = 7
+cooldown_turns = 1

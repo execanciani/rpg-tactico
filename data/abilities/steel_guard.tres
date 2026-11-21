@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"steel_guard"
+display_name = "Guardia de acero"
+description = "Adopta una postura que aumenta temporalmente la defensa."
+mp_cost = 4
+range_cells = 0
+ability_type = 1
+target_type = 2
+cooldown_turns = 3
+status_effect_path = "res://data/status_effects/steel_guard.tres"

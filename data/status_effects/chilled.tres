@@ -9,4 +9,6 @@ display_name = "Escarcha"
 description = "Reduce el movimiento durante dos turnos."
 duration_turns = 2
 move_modifier = -1
+stack_policy = 1
+max_stacks = 2
 color = Color(0.45, 0.8, 1, 1)

@@ -25,9 +25,18 @@ func choose_destination(enemy: UnitData, target: UnitData, reachable: Dictionary
 	return best_cell
 
 func choose_attack(enemy: UnitData, target: UnitData, heights: Dictionary = {}, blocked: Dictionary = {}) -> BattleCommand:
+	var best_ability: AbilityData
+	var best_score := -1
 	for ability in enemy.abilities:
 		if CombatRules.can_use_ability(enemy, target, ability, heights, blocked):
-			return BattleCommand.use_ability(enemy.unit_id, target.unit_id, ability.id)
+			var score := ability.power * ability.hit_count + ability.area_radius * 3
+			if ability.applies_status():
+				score += 4
+			if score > best_score:
+				best_score = score
+				best_ability = ability
+	if best_ability != null:
+		return BattleCommand.use_ability(enemy.unit_id, target.unit_id, best_ability.id)
 	if CombatRules.can_basic_attack(enemy, target, heights, blocked):
 		return BattleCommand.attack(enemy.unit_id, target.unit_id)
 	return null

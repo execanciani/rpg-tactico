@@ -26,6 +26,8 @@ var enemy_views: Array[TacticalUnit] = []
 var input_locked := false
 var battle_won := false
 var enemy_ai := EnemyAI.new()
+var turn_manager := TurnManager.new()
+var selected_ability: AbilityData
 var campaign := CampaignManager.new()
 var mission: MissionData
 var pending_dialogue := ""
@@ -34,12 +36,14 @@ var rewards_awarded := false
 
 func _ready() -> void:
 	grid.cell_pressed.connect(_on_cell_pressed)
+	grid.cell_hovered.connect(_on_cell_hovered)
 	ui.move_requested.connect(_on_move_requested)
 	ui.attack_requested.connect(_on_attack_requested)
 	ui.skill_requested.connect(_on_skill_requested)
 	ui.wait_requested.connect(_on_wait_requested)
 	ui.item_requested.connect(_on_item_requested)
 	ui.item_selected.connect(_on_item_selected)
+	ui.ability_selected.connect(_on_ability_selected)
 	ui.save_requested.connect(_on_save_requested)
 	ui.load_requested.connect(_on_load_requested)
 	ui.continue_requested.connect(_on_continue_requested)
@@ -63,7 +67,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("ui_cancel"):
 		_set_selection_mode(SelectionMode.NONE)
 
-func _start_mission(index: int, announce := true) -> void:
+func _start_mission(index: int, announce := true, begin_turn := true) -> void:
 	if campaign.missions.is_empty():
 		push_error("La campaña no contiene misiones válidas.")
 		return
@@ -96,17 +100,20 @@ func _start_mission(index: int, announce := true) -> void:
 	ui.hide_result()
 	ui.set_mission(mission.title, campaign.current_mission_index + 1, campaign.missions.size(), campaign.profile.gold)
 	ui.set_objective(mission.objective_text)
-	_start_player_round(false)
+	turn_manager.start(_unit_data(), 1)
 	ui.set_hint(mission.briefing)
 	if announce and not mission.intro_dialogue.is_empty():
 		pending_dialogue = "intro"
 		input_locked = true
 		ui.show_dialogue(mission.intro_dialogue)
+	elif begin_turn:
+		_begin_active_turn(false)
 	if announce:
 		ui.show_message("Misión: %s" % mission.title, Color("#9fe0bd"))
 
 func _clear_battlefield() -> void:
 	selected_unit = null
+	selected_ability = null
 	unit_views.clear()
 	hero_views.clear()
 	enemy_views.clear()
@@ -142,6 +149,10 @@ func _on_cell_pressed(cell: Vector2i) -> void:
 		return
 	var clicked := _living_unit_at(cell)
 	if clicked != null and clicked.data.team == UnitData.Team.HEROES:
+		if clicked.data.unit_id != turn_manager.active_unit_id:
+			ui.show_message("Ahora actúa %s." % _active_unit_name(), Color("#ffdc89"))
+			ui.show_unit(clicked.data)
+			return
 		if clicked.data.has_acted:
 			ui.show_message("%s ya actuó esta ronda." % clicked.data.display_name, Color("#ffdc89"))
 			ui.show_unit(clicked.data)
@@ -150,6 +161,17 @@ func _on_cell_pressed(cell: Vector2i) -> void:
 	elif clicked != null:
 		ui.show_unit(clicked.data)
 		ui.set_hint("Unidad enemiga · seleccioná un héroe para actuar")
+
+func _on_cell_hovered(cell: Vector2i) -> void:
+	if selection_mode != SelectionMode.MOVE or selected_unit == null or not grid.highlighted_cells.has(cell):
+		grid.show_path_preview([])
+		return
+	var path := GridPathfinder.find_path(
+		selected_unit.data.grid_position, cell, IsometricGrid.MAP_SIZE,
+		grid.blocked_cells, _occupied_cells(), selected_unit.data.effective_move_range(),
+		grid.height_cells, selected_unit.data.max_climb
+	)
+	grid.show_path_preview(path)
 
 func _select_unit(view: TacticalUnit) -> void:
 	_clear_selection_visuals()
@@ -175,7 +197,7 @@ func _deselect_unit() -> void:
 	ui.show_unit(null)
 	ui.configure_actions(null, false)
 	if phase == Phase.PLAYER:
-		ui.set_hint("Seleccioná una unidad azul que no haya actuado")
+		ui.set_hint("Esperando la acción de la unidad activa")
 
 func _on_move_requested() -> void:
 	if not _selection_can_act() or selected_unit.data.has_moved:
@@ -202,13 +224,26 @@ func _on_attack_requested() -> void:
 func _on_skill_requested() -> void:
 	if not _selection_can_act() or selected_unit.data.abilities.is_empty():
 		return
-	var ability: AbilityData = selected_unit.data.abilities[0]
-	if not selected_unit.data.can_spend_mp(ability.mp_cost):
-		ui.show_message("MP insuficiente", Color("#8dd7ff"))
+	ui.show_abilities(selected_unit.data)
+
+func _on_ability_selected(ability_id: StringName) -> void:
+	if not _selection_can_act():
+		return
+	selected_ability = _ability_by_id(selected_unit.data, ability_id)
+	if selected_ability == null:
+		return
+	if not selected_unit.data.can_spend_mp(selected_ability.mp_cost):
+		ui.show_message("MP insuficiente.", Color("#8dd7ff"))
+		return
+	if not selected_unit.data.is_ability_ready(selected_ability.id):
+		ui.show_message("La habilidad sigue en enfriamiento.", Color("#ffcf88"))
+		return
+	if selected_ability.target_type == AbilityData.TargetType.SELF:
+		_execute_attack(BattleCommand.use_ability(selected_unit.data.unit_id, selected_unit.data.unit_id, selected_ability.id), true)
 		return
 	_set_selection_mode(SelectionMode.SKILL)
-	_show_range(ability.range_cells, IsometricGrid.Highlight.SKILL)
-	ui.set_hint("%s · %d MP · requiere línea de visión" % [ability.display_name, ability.mp_cost])
+	_show_ability_range(selected_ability)
+	ui.set_hint("%s · %d MP · alcance %d" % [selected_ability.display_name, selected_ability.mp_cost, selected_ability.range_cells])
 
 func _on_wait_requested() -> void:
 	if not _selection_can_act():
@@ -253,6 +288,8 @@ func _set_selection_mode(mode: SelectionMode) -> void:
 	grid.clear_highlights()
 	for view in unit_views:
 		view.set_targeted(false)
+	if mode != SelectionMode.SKILL:
+		selected_ability = null
 	if mode == SelectionMode.NONE and selected_unit != null:
 		ui.set_hint("Elegí una acción")
 
@@ -271,6 +308,22 @@ func _show_range(attack_range: int, highlight: IsometricGrid.Highlight) -> void:
 		if enemy.data.is_alive() and cells.has(enemy.data.grid_position):
 			enemy.set_targeted(true)
 
+func _show_ability_range(ability: AbilityData) -> void:
+	var cells: Array[Vector2i] = []
+	for x in range(IsometricGrid.MAP_SIZE.x):
+		for y in range(IsometricGrid.MAP_SIZE.y):
+			var cell := Vector2i(x, y)
+			if CombatRules.effective_distance(selected_unit.data.grid_position, cell, grid.height_cells) <= ability.range_cells \
+			and CombatRules.has_line_of_sight(selected_unit.data.grid_position, cell, grid.height_cells, grid.blocked_cells):
+				cells.append(cell)
+	grid.show_highlights(cells, IsometricGrid.Highlight.SKILL)
+	for view in unit_views:
+		if not view.data.is_alive() or not cells.has(view.data.grid_position):
+			continue
+		var valid_team := ability.target_type == AbilityData.TargetType.ENEMY and view.data.team != selected_unit.data.team
+		valid_team = valid_team or (ability.target_type == AbilityData.TargetType.ALLY and view.data.team == selected_unit.data.team)
+		view.set_targeted(valid_team)
+
 func _try_move_to(cell: Vector2i) -> void:
 	if not grid.highlighted_cells.has(cell):
 		ui.show_message("Esa casilla no es alcanzable.", Color("#ffb28e"))
@@ -286,9 +339,22 @@ func _try_move_to(cell: Vector2i) -> void:
 	_execute_move(BattleCommand.move(selected_unit.data.unit_id, cell), path, true)
 
 func _execute_move(command: BattleCommand, path: Array[Vector2i], player_action: bool) -> void:
-	var actor := _unit_by_id(command.actor_id)
-	if actor == null or not actor.data.is_alive() or grid.is_blocked(command.target_cell):
+	if not command.is_valid_for(turn_manager.active_unit_id):
 		return
+	var actor := _unit_by_id(command.actor_id)
+	if actor == null or not actor.data.is_alive() or not grid.is_inside(command.target_cell) or grid.is_blocked(command.target_cell):
+		return
+	var validated_path := GridPathfinder.find_path(
+		actor.data.grid_position, command.target_cell, IsometricGrid.MAP_SIZE,
+		grid.blocked_cells, _occupied_cells(), actor.data.effective_move_range(),
+		grid.height_cells, actor.data.max_climb
+	)
+	if command.target_cell != actor.data.grid_position and validated_path.is_empty():
+		return
+	var occupant := _living_unit_at(command.target_cell)
+	if occupant != null and occupant != actor:
+		return
+	path = validated_path
 	input_locked = true
 	grid.clear_highlights()
 	actor.animate_path(path, grid)
@@ -308,45 +374,42 @@ func _execute_move(command: BattleCommand, path: Array[Vector2i], player_action:
 		ui.set_hint("Movimiento completado · ahora atacá, usá una habilidad o esperá")
 
 func _try_attack_at(cell: Vector2i, use_skill: bool) -> void:
+	if use_skill:
+		var ability := selected_ability
+		var ability_target := _living_unit_at(cell)
+		if ability == null or ability_target == null:
+			ui.show_message("Elegí un objetivo válido.", Color("#ffb28e"))
+			return
+		if not CombatRules.can_use_ability(selected_unit.data, ability_target.data, ability, grid.height_cells, grid.blocked_cells):
+			ui.show_message("Sin alcance, visión, MP o habilidad disponible.", Color("#ffb28e"))
+			return
+		_execute_attack(BattleCommand.use_ability(selected_unit.data.unit_id, ability_target.data.unit_id, ability.id), true)
+		return
 	var target := _living_unit_at(cell)
 	if target == null or target.data.team == selected_unit.data.team:
 		ui.show_message("Elegí una unidad enemiga válida.", Color("#ffb28e"))
 		return
-	if use_skill:
-		var ability: AbilityData = selected_unit.data.abilities[0]
-		if not CombatRules.can_use_ability(selected_unit.data, target.data, ability, grid.height_cells, grid.blocked_cells):
-			ui.show_message("Sin alcance, visión o MP suficiente.", Color("#ffb28e"))
-			return
-		_execute_attack(BattleCommand.use_ability(selected_unit.data.unit_id, target.data.unit_id, ability.id), true)
-	elif CombatRules.can_basic_attack(selected_unit.data, target.data, grid.height_cells, grid.blocked_cells):
+	if CombatRules.can_basic_attack(selected_unit.data, target.data, grid.height_cells, grid.blocked_cells):
 		_execute_attack(BattleCommand.attack(selected_unit.data.unit_id, target.data.unit_id), true)
 	else:
 		ui.show_message("Objetivo fuera de alcance o sin línea de visión.", Color("#ffb28e"))
 
 func _execute_attack(command: BattleCommand, player_action: bool) -> void:
+	if not command.is_valid_for(turn_manager.active_unit_id):
+		return
 	var actor := _unit_by_id(command.actor_id)
 	var target := _unit_by_id(command.target_unit_id)
 	if actor == null or target == null or not actor.data.is_alive() or not target.data.is_alive():
 		return
-	var damage := 0
-	var action_name := "Ataque"
 	if command.type == BattleCommand.Type.USE_ABILITY:
-		var ability := _ability_by_id(actor.data, command.ability_id)
-		if ability == null or not CombatRules.can_use_ability(actor.data, target.data, ability, grid.height_cells, grid.blocked_cells):
-			return
-		actor.data.mp -= ability.mp_cost
-		damage = CombatRules.ability_damage(actor.data, target.data, ability, grid.height_cells)
-		action_name = ability.display_name
-		if not ability.status_effect_path.is_empty() and _status_roll_succeeds(actor.data, target.data, ability):
-			var status := load(ability.status_effect_path) as StatusEffectData
-			if status != null:
-				target.data.add_status(status)
-				action_name += " + %s" % status.display_name
-	else:
-		if not CombatRules.can_basic_attack(actor.data, target.data, grid.height_cells, grid.blocked_cells):
-			return
-		damage = CombatRules.basic_attack_damage(actor.data, target.data, grid.height_cells)
+		await _execute_ability(command, actor, target, player_action)
+		return
+	var action_name := "Ataque"
+	if not CombatRules.can_basic_attack(actor.data, target.data, grid.height_cells, grid.blocked_cells):
+		return
+	var damage := CombatRules.basic_attack_damage(actor.data, target.data, grid.height_cells)
 	input_locked = true
+	await actor.play_attack(target.position, actor.data.basic_attack_damage_type == AbilityData.DamageType.MAGICAL)
 	var applied := CombatRules.apply_damage(target.data, damage)
 	actor.data.has_acted = true
 	actor.refresh()
@@ -364,73 +427,154 @@ func _execute_attack(command: BattleCommand, player_action: bool) -> void:
 	if player_action:
 		_finish_player_action()
 
-func _finish_player_action() -> void:
-	_deselect_unit()
-	if _living_heroes_have_acted():
-		_run_enemy_turn()
-
-func _run_enemy_turn() -> void:
-	phase = Phase.ENEMY
-	_deselect_unit()
-	ui.set_turn(round_number, false)
-	ui.set_hint("Los enemigos están decidiendo sus acciones…")
-	await get_tree().create_timer(0.45).timeout
-	for enemy in enemy_views:
-		if enemy.data.is_alive():
-			enemy.data.begin_turn()
-			_process_status_for_view(enemy)
+func _execute_ability(command: BattleCommand, actor: TacticalUnit, primary_target: TacticalUnit, player_action: bool) -> void:
+	var ability := _ability_by_id(actor.data, command.ability_id)
+	if ability == null or not CombatRules.can_use_ability(actor.data, primary_target.data, ability, grid.height_cells, grid.blocked_cells):
+		return
+	input_locked = true
+	actor.data.mp -= ability.mp_cost
+	actor.data.start_ability_cooldown(ability)
+	await actor.play_attack(primary_target.position, ability.damage_type == AbilityData.DamageType.MAGICAL)
+	var affected: Array[TacticalUnit] = []
+	for candidate in unit_views:
+		if not candidate.data.is_alive():
+			continue
+		if CombatRules.grid_distance(primary_target.data.grid_position, candidate.data.grid_position) > ability.area_radius:
+			continue
+		if ability.target_type == AbilityData.TargetType.ENEMY and candidate.data.team == actor.data.team:
+			continue
+		if ability.target_type == AbilityData.TargetType.ALLY and candidate.data.team != actor.data.team:
+			continue
+		if ability.target_type == AbilityData.TargetType.SELF and candidate != actor:
+			continue
+		affected.append(candidate)
+	if affected.is_empty():
+		affected.append(primary_target)
+	var total_damage := 0
+	var applied_status_names: Array[String] = []
+	for target in affected:
+		if ability.deals_damage():
+			for hit_index in ability.hit_count:
+				if not target.data.is_alive():
+					break
+				var damage := CombatRules.ability_damage(actor.data, target.data, ability, grid.height_cells)
+				var applied := CombatRules.apply_damage(target.data, damage)
+				total_damage += applied
+				target.play_hit()
+				_show_floating_damage(target, applied)
+				if ability.hit_count > 1:
+					await get_tree().create_timer(0.12).timeout
+		if ability.applies_status() and not ability.status_effect_path.is_empty() and target.data.is_alive() and _status_roll_succeeds(actor.data, target.data, ability):
+			var status := load(ability.status_effect_path) as StatusEffectData
+			if status != null:
+				target.data.add_status(status)
+				if not applied_status_names.has(status.display_name):
+					applied_status_names.append(status.display_name)
+		target.refresh()
+		if not target.data.is_alive():
+			target.play_defeat()
+	actor.data.has_acted = true
+	actor.refresh()
+	var result_text := "%s usa %s" % [actor.data.display_name, ability.display_name]
+	if total_damage > 0:
+		result_text += ": %d de daño" % total_damage
+	if not applied_status_names.is_empty():
+		result_text += " · " + ", ".join(applied_status_names)
+	ui.show_message(result_text, Color("#9edcff") if ability.damage_type == AbilityData.DamageType.MAGICAL else Color("#ffd38a"))
+	await get_tree().create_timer(0.28).timeout
+	input_locked = false
 	if _check_battle_result():
 		return
-	for enemy in enemy_views:
-		if phase == Phase.FINISHED:
-			return
-		if not enemy.data.is_alive():
-			continue
-		var target := enemy_ai.choose_target(enemy.data, _hero_data())
-		if target == null:
-			break
-		var attack_command := enemy_ai.choose_attack(enemy.data, target, grid.height_cells, grid.blocked_cells)
-		if attack_command == null:
-			var reachable := GridPathfinder.reachable_cells(
-				enemy.data.grid_position, enemy.data.effective_move_range(), IsometricGrid.MAP_SIZE,
-				grid.blocked_cells, _occupied_cells(), grid.height_cells, enemy.data.max_climb
+	if player_action:
+		_finish_player_action()
+
+func _finish_player_action() -> void:
+	_advance_turn()
+
+func _begin_active_turn(show_message := true) -> void:
+	if phase == Phase.FINISHED:
+		return
+	var active := _unit_by_id(turn_manager.active_unit_id)
+	if active == null or not active.data.is_alive():
+		_advance_turn()
+		return
+	round_number = turn_manager.round_number
+	for view in unit_views:
+		view.set_active(view == active)
+	active.data.begin_turn()
+	_process_status_for_view(active)
+	if not active.data.is_alive():
+		if not _check_battle_result():
+			_advance_turn()
+		return
+	if active.data.team == UnitData.Team.HEROES:
+		phase = Phase.PLAYER
+		input_locked = false
+		ui.set_turn(round_number, true)
+		_select_unit(active)
+		ui.set_hint("Turno de %s · elegí movimiento, ataque, habilidad, objeto o espera" % active.data.display_name)
+		if show_message:
+			ui.show_message("Actúa %s (VEL %d)" % [active.data.display_name, active.data.speed], Color("#ffe29a"))
+	else:
+		phase = Phase.ENEMY
+		input_locked = true
+		_deselect_unit()
+		active.set_active(true)
+		ui.show_unit(active.data)
+		ui.set_turn(round_number, false)
+		ui.set_hint("%s está decidiendo su acción…" % active.data.display_name)
+		await get_tree().create_timer(0.28).timeout
+		await _run_active_enemy_turn(active)
+
+func _run_active_enemy_turn(enemy: TacticalUnit) -> void:
+	if phase == Phase.FINISHED or enemy == null or not enemy.data.is_alive():
+		return
+	var target := enemy_ai.choose_target(enemy.data, _hero_data())
+	if target == null:
+		_advance_turn()
+		return
+	var attack_command := enemy_ai.choose_attack(enemy.data, target, grid.height_cells, grid.blocked_cells)
+	if attack_command == null:
+		var reachable := GridPathfinder.reachable_cells(
+			enemy.data.grid_position, enemy.data.effective_move_range(), IsometricGrid.MAP_SIZE,
+			grid.blocked_cells, _occupied_cells(), grid.height_cells, enemy.data.max_climb
+		)
+		var destination := enemy_ai.choose_destination(enemy.data, target, reachable)
+		if destination != enemy.data.grid_position:
+			var path := GridPathfinder.find_path(
+				enemy.data.grid_position, destination, IsometricGrid.MAP_SIZE,
+				grid.blocked_cells, _occupied_cells(), enemy.data.effective_move_range(),
+				grid.height_cells, enemy.data.max_climb
 			)
-			var destination := enemy_ai.choose_destination(enemy.data, target, reachable)
-			if destination != enemy.data.grid_position:
-				var path := GridPathfinder.find_path(
-					enemy.data.grid_position, destination, IsometricGrid.MAP_SIZE,
-					grid.blocked_cells, _occupied_cells(), enemy.data.effective_move_range(),
-					grid.height_cells, enemy.data.max_climb
-				)
-				await _execute_move(BattleCommand.move(enemy.data.unit_id, destination), path, false)
-			target = enemy_ai.choose_target(enemy.data, _hero_data())
-			if target != null:
-				attack_command = enemy_ai.choose_attack(enemy.data, target, grid.height_cells, grid.blocked_cells)
-		if attack_command != null:
-			await _execute_attack(attack_command, false)
+			await _execute_move(BattleCommand.move(enemy.data.unit_id, destination), path, false)
+		target = enemy_ai.choose_target(enemy.data, _hero_data())
+		if target != null:
+			attack_command = enemy_ai.choose_attack(enemy.data, target, grid.height_cells, grid.blocked_cells)
+	if attack_command != null:
+		await _execute_attack(attack_command, false)
+	if phase != Phase.FINISHED:
 		enemy.data.has_acted = true
 		enemy.refresh()
-		await get_tree().create_timer(0.18).timeout
-	if phase != Phase.FINISHED:
+		await get_tree().create_timer(0.16).timeout
+		_advance_turn()
+
+func _advance_turn() -> void:
+	if phase == Phase.FINISHED:
+		return
+	var active := _unit_by_id(turn_manager.active_unit_id)
+	if active != null:
+		active.data.has_acted = true
+		active.refresh()
+	_deselect_unit()
+	var began_new_round := turn_manager.complete_active_turn(_unit_data())
+	if began_new_round:
+		var next_round := turn_manager.round_number
+		round_number = next_round - 1
 		if _check_battle_result(true):
 			return
-		round_number += 1
-		_start_player_round(true)
-
-func _start_player_round(show_message: bool) -> void:
-	phase = Phase.PLAYER
-	for hero in hero_views:
-		if hero.data.is_alive():
-			hero.data.begin_turn()
-			_process_status_for_view(hero)
-	if not hero_views.any(func(view: TacticalUnit): return view.data.is_alive()):
-		_check_battle_result()
-		return
-	ui.set_turn(round_number, true)
-	ui.configure_actions(null, false)
-	if show_message:
+		round_number = next_round
 		ui.show_message("Comienza la ronda %d" % round_number, Color("#ffe29a"))
-	ui.set_hint("Seleccioná una unidad azul")
+	call_deferred("_begin_active_turn", false)
 
 func _check_battle_result(allow_survival := false) -> bool:
 	var heroes_alive := hero_views.any(func(view: TacticalUnit): return view.data.is_alive())
@@ -467,8 +611,7 @@ func _present_result() -> void:
 func _on_dialogue_finished() -> void:
 	if pending_dialogue == "intro":
 		pending_dialogue = ""
-		input_locked = false
-		ui.set_hint(mission.objective_text)
+		_begin_active_turn(false)
 	elif pending_dialogue == "victory":
 		pending_dialogue = ""
 		_present_result()
@@ -490,6 +633,7 @@ func _on_save_requested() -> void:
 	var success := SaveSystem.save_game({
 		"mission_index": campaign.current_mission_index,
 		"round": round_number,
+		"turn_manager": turn_manager.snapshot(),
 		"profile": campaign.profile.make_snapshot(),
 		"units": unit_views.map(func(view: TacticalUnit): return view.data.make_snapshot()),
 	})
@@ -504,7 +648,7 @@ func _on_load_requested() -> void:
 		return
 	var mission_index := int(payload.get("mission_index", 0))
 	campaign.profile.restore(payload.get("profile", {}))
-	_start_mission(mission_index, false)
+	_start_mission(mission_index, false, false)
 	round_number = maxi(1, int(payload.get("round", 1)))
 	for snapshot_value in payload.get("units", []):
 		var snapshot: Dictionary = snapshot_value
@@ -519,19 +663,23 @@ func _on_load_requested() -> void:
 		view.data.has_moved = bool(snapshot.get("has_moved", false))
 		view.data.has_acted = bool(snapshot.get("has_acted", false))
 		view.data.active_statuses.assign(snapshot.get("active_statuses", []))
+		view.data.ability_cooldowns = snapshot.get("ability_cooldowns", {}).duplicate(true)
 		view.position = grid.grid_to_world(view.data.grid_position) + Vector2(0, -9)
 		view.visible = view.data.is_alive()
 		view.refresh()
-	phase = Phase.PLAYER
-	input_locked = false
-	ui.set_turn(round_number, true)
+	turn_manager.restore(payload.get("turn_manager", {"round": round_number}), _unit_data())
+	round_number = turn_manager.round_number
+	for view in unit_views:
+		view.set_active(view.data.unit_id == turn_manager.active_unit_id)
+	var active := _unit_by_id(turn_manager.active_unit_id)
+	phase = Phase.PLAYER if active != null and active.data.team == UnitData.Team.HEROES else Phase.ENEMY
+	input_locked = phase != Phase.PLAYER
+	ui.set_turn(round_number, phase == Phase.PLAYER)
+	if active != null:
+		ui.show_unit(active.data)
+		if phase == Phase.PLAYER:
+			_select_unit(active)
 	ui.show_message("Partida cargada.", Color("#9fe0bd"))
-
-func _living_heroes_have_acted() -> bool:
-	for hero in hero_views:
-		if hero.data.is_alive() and not hero.data.has_acted:
-			return false
-	return true
 
 func _occupied_cells() -> Dictionary:
 	var occupied := {}
@@ -564,8 +712,19 @@ func _hero_data() -> Array[UnitData]:
 		result.append(view.data)
 	return result
 
+func _unit_data() -> Array[UnitData]:
+	var result: Array[UnitData] = []
+	for view in unit_views:
+		result.append(view.data)
+	return result
+
+func _active_unit_name() -> String:
+	var active := _unit_by_id(turn_manager.active_unit_id)
+	return active.data.display_name if active != null else "la unidad activa"
+
 func _selection_can_act() -> bool:
-	return phase == Phase.PLAYER and not input_locked and selected_unit != null and selected_unit.data.is_alive() and not selected_unit.data.has_acted
+	return phase == Phase.PLAYER and not input_locked and selected_unit != null and selected_unit.data.is_alive() \
+		and selected_unit.data.unit_id == turn_manager.active_unit_id and not selected_unit.data.has_acted
 
 func _show_floating_damage(target: TacticalUnit, amount: int) -> void:
 	var floating := FloatingText.new()

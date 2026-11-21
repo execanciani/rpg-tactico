@@ -6,6 +6,7 @@ signal movement_finished
 var data: UnitData
 var is_selected := false
 var is_targeted := false
+var is_active := false
 
 func setup(unit_data: UnitData, world_position: Vector2) -> void:
 	data = unit_data
@@ -19,6 +20,10 @@ func set_selected(value: bool) -> void:
 
 func set_targeted(value: bool) -> void:
 	is_targeted = value
+	queue_redraw()
+
+func set_active(value: bool) -> void:
+	is_active = value
 	queue_redraw()
 
 func refresh() -> void:
@@ -43,6 +48,20 @@ func play_hit() -> void:
 	tween.tween_property(self, "modulate", Color("#ff7070"), 0.07)
 	tween.tween_property(self, "modulate", original_modulate, 0.13)
 
+func play_attack(target_position: Vector2, magical := false) -> void:
+	var origin := position
+	var direction := origin.direction_to(target_position)
+	var tween := create_tween()
+	if magical:
+		tween.tween_property(self, "scale", Vector2(1.16, 1.16), 0.10)
+		tween.tween_property(self, "modulate", Color("#8edbff"), 0.08)
+		tween.tween_property(self, "scale", Vector2.ONE, 0.12)
+		tween.tween_property(self, "modulate", Color.WHITE, 0.06)
+	else:
+		tween.tween_property(self, "position", origin + direction * 10.0, 0.09)
+		tween.tween_property(self, "position", origin, 0.13)
+	await tween.finished
+
 func play_defeat() -> void:
 	var tween := create_tween()
 	tween.set_parallel(true)
@@ -62,6 +81,9 @@ func _draw() -> void:
 	_draw_flat_ellipse(Vector2(0, 13), Vector2(20, 8), Color(0.05, 0.08, 0.10, 0.45))
 	if is_selected:
 		draw_arc(Vector2(0, 11), 22.0, 0, TAU, 32, Color("#ffe784"), 3.0)
+	if is_active:
+		draw_arc(Vector2(0, 10), 26.0, -PI * 0.85, PI * 0.15, 24, Color("#ffffff"), 4.0)
+		draw_colored_polygon(PackedVector2Array([Vector2(-5, -55), Vector2(5, -55), Vector2(0, -47)]), Color("#fff19a"))
 	if is_targeted:
 		draw_arc(Vector2(0, -12), 23.0, 0, TAU, 32, Color("#ff5b55"), 3.0)
 	# Provisional original pixel-style character assembled from primitives.

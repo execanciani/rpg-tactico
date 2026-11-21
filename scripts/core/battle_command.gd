@@ -45,3 +45,17 @@ func serialize() -> Dictionary:
 		"target_unit_id": target_unit_id,
 		"ability_id": String(ability_id),
 	}
+
+func is_valid_for(active_actor_id: String) -> bool:
+	if actor_id.is_empty() or actor_id != active_actor_id:
+		return false
+	match type:
+		Type.MOVE:
+			return true
+		Type.BASIC_ATTACK:
+			return not target_unit_id.is_empty()
+		Type.USE_ABILITY:
+			return not target_unit_id.is_empty() and not ability_id.is_empty()
+		Type.WAIT:
+			return true
+	return false

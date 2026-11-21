@@ -13,6 +13,9 @@ func _run() -> void:
 	_test_height_and_line_of_sight()
 	_test_inventory_and_equipment()
 	_test_status_effects()
+	_test_turn_order()
+	_test_abilities_and_cooldowns()
+	_test_death_and_outcome()
 	_test_campaign_progression()
 	_test_mission_objectives_and_dialogue()
 	_test_save_round_trip()
@@ -58,6 +61,7 @@ func _test_combat_rules() -> void:
 func _test_structured_command() -> void:
 	var command := BattleCommand.move("hero", Vector2i(3, 5))
 	var payload := command.serialize()
+	_expect(command.is_valid_for("hero") and not command.is_valid_for("enemy"), "La validación estructural aceptó un actor fuera de turno.")
 	_expect(payload.actor_id == "hero" and payload.target_cell.x == 3, "La serialización del comando perdió datos.")
 
 func _test_external_resources() -> void:
@@ -65,7 +69,7 @@ func _test_external_resources() -> void:
 	var mission := load("res://data/missions/mission_01.tres") as MissionData
 	_expect(mage != null and mage.magical_attack == 15, "No se cargó el arquetipo externo del mago.")
 	var unit := mage.instantiate("test_mage", UnitData.Team.HEROES, Vector2i.ZERO)
-	_expect(unit.abilities.size() == 1 and unit.abilities[0].id == &"frost_shard", "La habilidad .tres no fue vinculada al arquetipo.")
+	_expect(unit.abilities.size() == 2 and unit.abilities[0].id == &"ice_lance" and unit.abilities[1].id == &"paralyzing_frost", "Las habilidades .tres no fueron vinculadas al arquetipo.")
 	_expect(mission != null and mission.height_cells.size() > 0, "La misión externa no contiene alturas.")
 
 func _test_height_and_line_of_sight() -> void:
@@ -101,11 +105,81 @@ func _test_status_effects() -> void:
 	var burning := load("res://data/status_effects/burning.tres") as StatusEffectData
 	unit.add_status(chilled)
 	unit.add_status(burning)
-	_expect(unit.effective_move_range() == 3, "Escarcha no redujo el movimiento efectivo.")
+	unit.add_status(chilled)
+	_expect(unit.effective_move_range() == 2, "Escarcha no acumuló la reducción de movimiento.")
 	unit.process_status_turn()
 	_expect(unit.hp == 17, "Quemadura no infligió daño por turno.")
 	unit.process_status_turn()
 	_expect(unit.active_statuses.is_empty(), "Los estados no expiraron al completar su duración.")
+
+func _test_turn_order() -> void:
+	var slow := UnitData.new()
+	slow.unit_id = "slow"
+	slow.speed = 4
+	var fast_b := UnitData.new()
+	fast_b.unit_id = "fast_b"
+	fast_b.team = UnitData.Team.ENEMIES
+	fast_b.speed = 9
+	var fast_a := UnitData.new()
+	fast_a.unit_id = "fast_a"
+	fast_a.speed = 9
+	var units: Array[UnitData] = [slow, fast_b, fast_a]
+	var manager := TurnManager.new()
+	manager.start(units)
+	_expect(manager.order == ["fast_a", "fast_b", "slow"], "La iniciativa no respeta velocidad y desempate estable.")
+	var seen: Array[String] = []
+	for index in 3:
+		seen.append(manager.active_unit_id)
+		manager.complete_active_turn(units)
+	_expect(seen == ["fast_a", "fast_b", "slow"] and manager.round_number == 2, "Una unidad actuó dos veces o se perdió al avanzar la ronda.")
+	fast_b.hp = 0
+	manager.complete_active_turn(units)
+	_expect(not manager.order.has("fast_b"), "Una unidad derrotada permaneció en la cola de iniciativa.")
+
+func _test_abilities_and_cooldowns() -> void:
+	var warrior_archetype := load("res://data/archetypes/hero_warrior.tres") as UnitArchetype
+	var archer_archetype := load("res://data/archetypes/hero_archer.tres") as UnitArchetype
+	var warrior := warrior_archetype.instantiate("warrior", UnitData.Team.HEROES, Vector2i.ZERO)
+	var enemy := archer_archetype.instantiate("enemy", UnitData.Team.ENEMIES, Vector2i(0, 1))
+	var strike: AbilityData = warrior.abilities[0]
+	var guard: AbilityData = warrior.abilities[1]
+	_expect(CombatRules.can_use_ability(warrior, enemy, strike), "Golpe poderoso rechazó un objetivo enemigo válido.")
+	warrior.mp = 0
+	_expect(not CombatRules.can_use_ability(warrior, enemy, strike), "Una habilidad pudo usarse sin MP suficiente.")
+	warrior.mp = warrior.max_mp
+	_expect(not CombatRules.can_use_ability(warrior, enemy, guard), "Guardia de acero aceptó un objetivo que no era el propio usuario.")
+	_expect(CombatRules.can_use_ability(warrior, warrior, guard), "Guardia de acero rechazó al propio usuario.")
+	warrior.start_ability_cooldown(guard)
+	_expect(not warrior.is_ability_ready(guard.id), "El enfriamiento no bloqueó la habilidad.")
+	warrior.begin_turn()
+	_expect(warrior.ability_cooldown(guard.id) == 2, "El enfriamiento no disminuyó al comenzar la activación.")
+	var steel_guard := load("res://data/status_effects/steel_guard.tres") as StatusEffectData
+	warrior.add_status(steel_guard)
+	_expect(warrior.effective_physical_defense() == warrior.physical_defense + 5, "El aumento temporal de defensa no se aplicó.")
+	warrior.process_status_turn()
+	warrior.process_status_turn()
+	_expect(warrior.effective_physical_defense() == warrior.physical_defense, "El aumento de defensa no expiró.")
+	var double_shot := load("res://data/abilities/double_shot.tres") as AbilityData
+	_expect(double_shot.hit_count == 2 and double_shot.damage_scale < 1.0, "Disparo doble no contiene dos impactos reducidos.")
+	enemy.grid_position = Vector2i(0, 8)
+	warrior.mp = warrior.max_mp
+	_expect(not CombatRules.can_use_ability(warrior, enemy, strike), "Una habilidad aceptó un objetivo fuera de alcance.")
+
+func _test_death_and_outcome() -> void:
+	var hero := UnitData.new()
+	hero.unit_id = "hero"
+	hero.team = UnitData.Team.HEROES
+	var enemy := UnitData.new()
+	enemy.unit_id = "enemy"
+	enemy.team = UnitData.Team.ENEMIES
+	enemy.hp = 1
+	var units: Array[UnitData] = [hero, enemy]
+	CombatRules.apply_damage(enemy, 5)
+	_expect(not enemy.is_alive(), "Una unidad con HP cero no fue marcada como derrotada.")
+	_expect(CombatRules.battle_winner(units) == UnitData.Team.HEROES, "La condición de victoria no detectó al equipo superviviente.")
+	enemy.hp = 10
+	hero.hp = 0
+	_expect(CombatRules.battle_winner(units) == UnitData.Team.ENEMIES, "La condición de derrota no detectó al equipo enemigo.")
 
 func _test_campaign_progression() -> void:
 	var profile := CampaignProfile.new()
@@ -133,6 +207,8 @@ func _test_save_round_trip() -> void:
 	profile.initialize_default()
 	source["profile"] = profile.make_snapshot()
 	var restored := SaveSystem.decode_payload(SaveSystem.encode_payload(source))
+	var legacy := SaveSystem.decode_payload(JSON.stringify({"version": 3, "mission_index": 0}))
+	_expect(int(legacy.get("version", -1)) == SaveSystem.SAVE_VERSION, "Una partida versión 3 no fue migrada al formato actual.")
 	_expect(int(restored.get("mission_index", -1)) == 1, "El guardado perdió el progreso de campaña.")
 	_expect(int(restored.get("round", -1)) == 4, "El guardado perdió la ronda actual.")
 	var temporary_path := "res://tests/.temporary_save_test.json"
@@ -148,6 +224,7 @@ func _test_complete_battles() -> void:
 		var result := BattleSimulator.simulate_mission(mission)
 		print("SIMULACIÓN: %s · %d rondas · %d acciones" % [mission.title, int(result.rounds), int(result.actions)])
 		_expect(result.finished, "La simulación completa no terminó: %s" % mission.title)
+		_expect(int(result.winner) == UnitData.Team.HEROES, "La simulación no resolvió victoria heroica: %s" % mission.title)
 		_expect(int(result.actions) > 0 and int(result.rounds) > 0, "La simulación no ejecutó acciones: %s" % mission.title)
 
 func _test_main_scene() -> void:

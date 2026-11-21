@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatusEffectData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/status_effect_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+effect_id = "steel_guard"
+display_name = "Guardia de acero"
+description = "Aumenta ambas defensas durante dos activaciones."
+duration_turns = 2
+physical_defense_modifier = 5
+magical_defense_modifier = 3
+color = Color(0.75, 0.84, 0.92, 1)

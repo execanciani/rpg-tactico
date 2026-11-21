@@ -7,6 +7,7 @@ signal skill_requested
 signal wait_requested
 signal item_requested
 signal item_selected(item_id: String)
+signal ability_selected(ability_id: StringName)
 signal save_requested
 signal load_requested
 signal continue_requested
@@ -18,6 +19,8 @@ var hint_label: Label
 var objective_label: Label
 var unit_name_label: Label
 var unit_stats_label: Label
+var hp_bar: ProgressBar
+var mp_bar: ProgressBar
 var move_button: Button
 var attack_button: Button
 var skill_button: Button
@@ -31,6 +34,9 @@ var result_button: Button
 var inventory_overlay: PanelContainer
 var inventory_list: VBoxContainer
 var inventory_title: Label
+var ability_overlay: PanelContainer
+var ability_list: VBoxContainer
+var ability_title: Label
 var dialogue_overlay: ColorRect
 var dialogue_label: Label
 var dialogue_lines: Array[String] = []
@@ -45,6 +51,7 @@ func _ready() -> void:
 	_build_message_log()
 	_build_result_overlay()
 	_build_inventory_overlay()
+	_build_ability_overlay()
 	_build_dialogue_overlay()
 	show_unit(null)
 
@@ -124,6 +131,16 @@ func _build_unit_panel() -> void:
 	unit_stats_label.add_theme_font_size_override("font_size", 15)
 	unit_stats_label.add_theme_color_override("font_color", Color("#d9e2e6"))
 	column.add_child(unit_stats_label)
+	hp_bar = ProgressBar.new()
+	hp_bar.custom_minimum_size = Vector2(0, 14)
+	hp_bar.show_percentage = false
+	hp_bar.visible = false
+	column.add_child(hp_bar)
+	mp_bar = ProgressBar.new()
+	mp_bar.custom_minimum_size = Vector2(0, 12)
+	mp_bar.show_percentage = false
+	mp_bar.visible = false
+	column.add_child(mp_bar)
 
 func _build_action_panel() -> void:
 	var panel := PanelContainer.new()
@@ -228,6 +245,35 @@ func _build_inventory_overlay() -> void:
 	close_button.pressed.connect(hide_inventory)
 	column.add_child(close_button)
 
+func _build_ability_overlay() -> void:
+	ability_overlay = PanelContainer.new()
+	ability_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	ability_overlay.offset_left = -300
+	ability_overlay.offset_top = -190
+	ability_overlay.offset_right = 300
+	ability_overlay.offset_bottom = 190
+	ability_overlay.add_theme_stylebox_override("panel", _panel_style(Color("#101a24f5"), Color("#79b8d1")))
+	ability_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	ability_overlay.visible = false
+	add_child(ability_overlay)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 10)
+	ability_overlay.add_child(column)
+	ability_title = Label.new()
+	ability_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ability_title.add_theme_font_size_override("font_size", 24)
+	ability_title.add_theme_color_override("font_color", Color("#aee5ff"))
+	column.add_child(ability_title)
+	ability_list = VBoxContainer.new()
+	ability_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	ability_list.add_theme_constant_override("separation", 8)
+	column.add_child(ability_list)
+	var close_button := Button.new()
+	close_button.text = "Cerrar"
+	close_button.custom_minimum_size = Vector2(0, 48)
+	close_button.pressed.connect(hide_abilities)
+	column.add_child(close_button)
+
 func _build_dialogue_overlay() -> void:
 	dialogue_overlay = ColorRect.new()
 	dialogue_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -299,14 +345,23 @@ func show_message(value: String, color: Color = Color.WHITE) -> void:
 	tween.tween_property(message_label, "modulate:a", 0.0, 0.45)
 
 func show_unit(unit: UnitData) -> void:
+	if unit != null:
+		hp_bar.visible = true
+		mp_bar.visible = true
+		hp_bar.max_value = unit.max_hp
+		hp_bar.value = unit.hp
+		mp_bar.max_value = maxi(1, unit.max_mp)
+		mp_bar.value = unit.mp
 	if unit == null:
+		hp_bar.visible = false
+		mp_bar.visible = false
 		unit_name_label.text = "Sin unidad seleccionada"
 		unit_stats_label.text = "Elegí una unidad azul para actuar."
 		return
 	unit_name_label.text = "%s · Nv. %d %s" % [unit.display_name, unit.level, unit.class_name_text]
 	unit_stats_label.text = "HP %d/%d   MP %d/%d   XP %d/%d\nATQ %d   MAG %d   DEF %d   RES %d\nMOV %d (%d)   VEL %d   ALT %d\nEquipo: %s\nEstados: %s" % [
 		unit.hp, unit.max_hp, unit.mp, unit.max_mp, unit.xp, unit.xp_to_next,
-		unit.physical_attack, unit.magical_attack, unit.physical_defense, unit.magical_defense,
+		unit.physical_attack, unit.magical_attack, unit.effective_physical_defense(), unit.effective_magical_defense(),
 		unit.effective_move_range(), unit.move_range, unit.speed, unit.elevation,
 		unit.equipped_summary, unit.status_summary(),
 	]
@@ -315,12 +370,16 @@ func configure_actions(unit: UnitData, enabled: bool) -> void:
 	var can_act := enabled and unit != null and unit.is_alive() and not unit.has_acted
 	move_button.disabled = not can_act or unit.has_moved
 	attack_button.disabled = not can_act
-	skill_button.disabled = not can_act or unit.abilities.is_empty() or not unit.can_spend_mp(unit.abilities[0].mp_cost)
+	var has_available_ability := false
+	if unit != null:
+		for ability in unit.abilities:
+			if unit.can_spend_mp(ability.mp_cost) and unit.is_ability_ready(ability.id):
+				has_available_ability = true
+	skill_button.disabled = not can_act or not has_available_ability
 	item_button.disabled = not can_act
 	wait_button.disabled = not can_act
 	if unit != null and not unit.abilities.is_empty():
-		var ability: AbilityData = unit.abilities[0]
-		skill_button.text = "%s (%d MP)\n[S]" % [ability.display_name, ability.mp_cost]
+		skill_button.text = "Habilidades (%d)\n[S]" % unit.abilities.size()
 	else:
 		skill_button.text = "Habilidad\n[S]"
 
@@ -356,6 +415,30 @@ func _emit_item_selected(item_id: String) -> void:
 
 func hide_inventory() -> void:
 	inventory_overlay.visible = false
+
+func show_abilities(unit: UnitData) -> void:
+	ability_title.text = "Habilidades · %s" % unit.display_name
+	for child in ability_list.get_children():
+		child.queue_free()
+	for ability in unit.abilities:
+		var cooldown := unit.ability_cooldown(ability.id)
+		var button := Button.new()
+		var area_text := " · Área %d" % ability.area_radius if ability.area_radius > 0 else ""
+		var cooldown_text := " · CD %d" % cooldown if cooldown > 0 else ""
+		button.text = "%s · %d MP · Alcance %d%s%s\n%s" % [ability.display_name, ability.mp_cost, ability.range_cells, area_text, cooldown_text, ability.description]
+		button.custom_minimum_size = Vector2(0, 66)
+		button.disabled = not unit.can_spend_mp(ability.mp_cost) or cooldown > 0
+		button.pressed.connect(_emit_ability_selected.bind(ability.id))
+		ability_list.add_child(button)
+	ability_overlay.visible = true
+	ability_overlay.move_to_front()
+
+func _emit_ability_selected(ability_id: StringName) -> void:
+	ability_overlay.visible = false
+	ability_selected.emit(ability_id)
+
+func hide_abilities() -> void:
+	ability_overlay.visible = false
 
 func show_dialogue(lines: Array[String]) -> void:
 	if lines.is_empty():

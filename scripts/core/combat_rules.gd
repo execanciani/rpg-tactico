@@ -14,11 +14,22 @@ static func can_basic_attack(attacker: UnitData, defender: UnitData, heights: Di
 	)
 
 static func can_use_ability(attacker: UnitData, defender: UnitData, ability: AbilityData, heights: Dictionary = {}, blocked: Dictionary = {}) -> bool:
+	if attacker == null or defender == null or ability == null:
+		return false
+	var valid_target := false
+	match ability.target_type:
+		AbilityData.TargetType.ENEMY:
+			valid_target = attacker.team != defender.team
+		AbilityData.TargetType.ALLY:
+			valid_target = attacker.team == defender.team
+		AbilityData.TargetType.SELF:
+			valid_target = attacker == defender
 	return (
 		attacker.is_alive()
 		and defender.is_alive()
-		and attacker.team != defender.team
+		and valid_target
 		and attacker.can_spend_mp(ability.mp_cost)
+		and attacker.is_ability_ready(ability.id)
 		and effective_distance(attacker.grid_position, defender.grid_position, heights) <= ability.range_cells
 		and has_line_of_sight(attacker.grid_position, defender.grid_position, heights, blocked)
 	)
@@ -26,14 +37,23 @@ static func can_use_ability(attacker: UnitData, defender: UnitData, ability: Abi
 static func basic_attack_damage(attacker: UnitData, defender: UnitData, heights: Dictionary = {}) -> int:
 	var height_bonus: int = _height_bonus(attacker, defender, heights)
 	if attacker.basic_attack_damage_type == AbilityData.DamageType.MAGICAL:
-		return maxi(1, attacker.magical_attack - int(defender.magical_defense * 0.55) + height_bonus)
-	return maxi(1, attacker.physical_attack - int(defender.physical_defense * 0.55) + height_bonus)
+		return maxi(1, attacker.magical_attack - int(defender.effective_magical_defense() * 0.55) + height_bonus)
+	return maxi(1, attacker.physical_attack - int(defender.effective_physical_defense() * 0.55) + height_bonus)
 
 static func ability_damage(attacker: UnitData, defender: UnitData, ability: AbilityData, heights: Dictionary = {}) -> int:
 	var height_bonus: int = _height_bonus(attacker, defender, heights)
 	if ability.damage_type == AbilityData.DamageType.MAGICAL:
-		return maxi(1, attacker.magical_attack + ability.power - int(defender.magical_defense * 0.5) + height_bonus)
-	return maxi(1, attacker.physical_attack + ability.power - int(defender.physical_defense * 0.5) + height_bonus)
+		return maxi(1, roundi((attacker.magical_attack + ability.power - int(defender.effective_magical_defense() * 0.5) + height_bonus) * ability.damage_scale))
+	return maxi(1, roundi((attacker.physical_attack + ability.power - int(defender.effective_physical_defense() * 0.5) + height_bonus) * ability.damage_scale))
+
+static func battle_winner(units: Array[UnitData]) -> int:
+	var heroes_alive := units.any(func(unit: UnitData): return unit.team == UnitData.Team.HEROES and unit.is_alive())
+	var enemies_alive := units.any(func(unit: UnitData): return unit.team == UnitData.Team.ENEMIES and unit.is_alive())
+	if heroes_alive and not enemies_alive:
+		return UnitData.Team.HEROES
+	if enemies_alive and not heroes_alive:
+		return UnitData.Team.ENEMIES
+	return -1
 
 static func apply_damage(target: UnitData, amount: int) -> int:
 	var applied: int = mini(target.hp, maxi(0, amount))

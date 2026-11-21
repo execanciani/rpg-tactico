@@ -17,3 +17,4 @@ speed = 9
 move_range = 5
 max_climb = 2
 basic_attack_range = 4
+ability_paths = Array[String](["res://data/abilities/precise_arrow.tres", "res://data/abilities/double_shot.tres"])

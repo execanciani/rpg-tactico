@@ -31,6 +31,7 @@ enum Team { HEROES, ENEMIES }
 var has_moved := false
 var has_acted := false
 var active_statuses: Array[Dictionary] = []
+var ability_cooldowns: Dictionary = {}
 var equipped_summary := "Sin equipo"
 
 func is_alive() -> bool:
@@ -42,23 +43,60 @@ func can_spend_mp(amount: int) -> bool:
 func begin_turn() -> void:
 	has_moved = false
 	has_acted = false
+	for ability_id in ability_cooldowns.keys():
+		var remaining := int(ability_cooldowns[ability_id]) - 1
+		if remaining <= 0:
+			ability_cooldowns.erase(ability_id)
+		else:
+			ability_cooldowns[ability_id] = remaining
+
+func ability_cooldown(ability_id: StringName) -> int:
+	return int(ability_cooldowns.get(String(ability_id), 0))
+
+func is_ability_ready(ability_id: StringName) -> bool:
+	return ability_cooldown(ability_id) <= 0
+
+func start_ability_cooldown(ability: AbilityData) -> void:
+	if ability != null and ability.cooldown_turns > 0:
+		ability_cooldowns[String(ability.id)] = ability.cooldown_turns
 
 func effective_move_range() -> int:
 	var modifier := 0
 	for entry in active_statuses:
 		var effect := load(str(entry.get("path", ""))) as StatusEffectData
 		if effect != null:
-			modifier += effect.move_modifier
+			modifier += effect.move_modifier * int(entry.get("stacks", 1))
 	return maxi(1, move_range + modifier)
+
+func effective_physical_defense() -> int:
+	return maxi(0, physical_defense + _status_modifier("physical_defense_modifier"))
+
+func effective_magical_defense() -> int:
+	return maxi(0, magical_defense + _status_modifier("magical_defense_modifier"))
+
+func _status_modifier(property_name: StringName) -> int:
+	var modifier := 0
+	for entry in active_statuses:
+		var effect := load(str(entry.get("path", ""))) as StatusEffectData
+		if effect != null:
+			modifier += int(effect.get(property_name)) * int(entry.get("stacks", 1))
+	return modifier
 
 func add_status(effect: StatusEffectData) -> void:
 	if effect == null or effect.resource_path.is_empty():
 		return
 	for index in active_statuses.size():
 		if str(active_statuses[index].get("path", "")) == effect.resource_path:
-			active_statuses[index]["remaining"] = effect.duration_turns
+			match effect.stack_policy:
+				StatusEffectData.StackPolicy.REFRESH:
+					active_statuses[index]["remaining"] = effect.duration_turns
+				StatusEffectData.StackPolicy.STACK:
+					active_statuses[index]["stacks"] = mini(effect.max_stacks, int(active_statuses[index].get("stacks", 1)) + 1)
+					active_statuses[index]["remaining"] = effect.duration_turns
+				StatusEffectData.StackPolicy.IGNORE:
+					pass
 			return
-	active_statuses.append({"path": effect.resource_path, "remaining": effect.duration_turns})
+	active_statuses.append({"path": effect.resource_path, "remaining": effect.duration_turns, "stacks": 1})
 
 func process_status_turn() -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
@@ -69,7 +107,7 @@ func process_status_turn() -> Array[Dictionary]:
 			active_statuses.remove_at(index)
 			continue
 		if effect.damage_per_turn > 0 and is_alive():
-			var damage := mini(hp, effect.damage_per_turn)
+			var damage := mini(hp, effect.damage_per_turn * int(entry.get("stacks", 1)))
 			hp -= damage
 			events.append({"name": effect.display_name, "damage": damage, "color": effect.color})
 		entry["remaining"] = int(entry.get("remaining", 1)) - 1
@@ -84,7 +122,9 @@ func status_summary() -> String:
 	for entry in active_statuses:
 		var effect := load(str(entry.get("path", ""))) as StatusEffectData
 		if effect != null:
-			names.append("%s (%d)" % [effect.display_name, int(entry.get("remaining", 0))])
+			var stacks := int(entry.get("stacks", 1))
+			var stack_text := " x%d" % stacks if stacks > 1 else ""
+			names.append("%s%s (%d)" % [effect.display_name, stack_text, int(entry.get("remaining", 0))])
 	return ", ".join(names) if not names.is_empty() else "Sin estados"
 
 func make_snapshot() -> Dictionary:
@@ -105,4 +145,5 @@ func make_snapshot() -> Dictionary:
 		"has_moved": has_moved,
 		"has_acted": has_acted,
 		"active_statuses": active_statuses.duplicate(true),
+		"ability_cooldowns": ability_cooldowns.duplicate(true),
 	}

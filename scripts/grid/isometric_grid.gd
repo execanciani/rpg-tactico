@@ -2,6 +2,7 @@ class_name IsometricGrid
 extends Node2D
 
 signal cell_pressed(cell: Vector2i)
+signal cell_hovered(cell: Vector2i)
 
 enum Terrain { GRASS, DIRT, STONE }
 enum Highlight { NONE, MOVE, ATTACK, SKILL }
@@ -15,6 +16,8 @@ var height_cells: Dictionary = {}
 var highlighted_cells: Dictionary = {}
 var selected_cell := Vector2i(-1, -1)
 var objective_cell := Vector2i(-1, -1)
+var preview_path: Array[Vector2i] = []
+var last_hovered_cell := Vector2i(-1, -1)
 
 func _ready() -> void:
 	queue_redraw()
@@ -24,6 +27,7 @@ func configure(mission: MissionData) -> void:
 	height_cells = mission.height_map()
 	objective_cell = mission.objective_cell if mission.objective_type == MissionData.ObjectiveType.REACH_CELL else Vector2i(-1, -1)
 	highlighted_cells.clear()
+	preview_path.clear()
 	selected_cell = Vector2i(-1, -1)
 	queue_redraw()
 
@@ -70,6 +74,11 @@ func show_highlights(cells: Array[Vector2i], type: Highlight) -> void:
 
 func clear_highlights() -> void:
 	highlighted_cells.clear()
+	preview_path.clear()
+	queue_redraw()
+
+func show_path_preview(path: Array[Vector2i]) -> void:
+	preview_path = path.duplicate()
 	queue_redraw()
 
 func set_selected(cell: Vector2i) -> void:
@@ -77,6 +86,11 @@ func set_selected(cell: Vector2i) -> void:
 	queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		var hovered := world_to_grid(get_global_mouse_position())
+		if hovered != last_hovered_cell:
+			last_hovered_cell = hovered
+			cell_hovered.emit(hovered)
 	var was_pressed := false
 	var pointer_world := get_global_mouse_position()
 	if event is InputEventMouseButton:
@@ -100,6 +114,19 @@ func _draw() -> void:
 			_draw_cell(Vector2i(x, y))
 	for cell: Vector2i in blocked_cells:
 		_draw_obstacle(cell)
+	_draw_path_preview()
+
+func _draw_path_preview() -> void:
+	if preview_path.is_empty():
+		return
+	var points := PackedVector2Array()
+	for cell in preview_path:
+		points.append(grid_to_world(cell))
+	if points.size() > 1:
+		draw_polyline(points, Color("#e9fbff"), 5.0, true)
+	for point in points:
+		draw_circle(point, 5.0, Color("#62d9ff"))
+		draw_arc(point, 7.0, 0, TAU, 16, Color("#173244"), 2.0)
 
 func _draw_cell(cell: Vector2i) -> void:
 	var center := grid_to_world(cell)

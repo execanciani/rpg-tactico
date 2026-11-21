@@ -17,3 +17,4 @@ speed = 6
 move_range = 4
 max_climb = 1
 basic_attack_range = 1
+ability_paths = Array[String](["res://data/abilities/powerful_strike.tres", "res://data/abilities/steel_guard.tres"])

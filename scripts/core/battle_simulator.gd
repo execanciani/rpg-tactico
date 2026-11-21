@@ -24,58 +24,58 @@ static func simulate_mission(mission: MissionData, maximum_rounds := 80) -> Dict
 	var blocked := mission.blocked_map()
 	var actions := 0
 	var completed_rounds := 0
-	for round_index in maximum_rounds:
-		completed_rounds = round_index + 1
-		actions += _run_team(heroes, enemies, heroes, enemies, heights, blocked)
-		if _heroes_completed_objective(mission, heroes, enemies, completed_rounds, false):
-			return {"finished": true, "winner": UnitData.Team.HEROES, "rounds": completed_rounds, "actions": actions}
-		actions += _run_team(enemies, heroes, heroes, enemies, heights, blocked)
+	var all_units: Array[UnitData] = []
+	all_units.append_array(heroes)
+	all_units.append_array(enemies)
+	var turn_manager := TurnManager.new()
+	turn_manager.start(all_units)
+	while turn_manager.round_number <= maximum_rounds and not turn_manager.active_unit_id.is_empty():
+		completed_rounds = turn_manager.round_number
+		var actor := _unit_by_id(turn_manager.active_unit_id, all_units)
+		if actor != null and actor.is_alive():
+			actor.begin_turn()
+			actor.process_status_turn()
+		if actor != null and actor.is_alive():
+			var opponents := enemies if actor.team == UnitData.Team.HEROES else heroes
+			var target := _nearest_target(actor, opponents)
+			if target != null and not _can_attack(actor, target, heights, blocked):
+				var reachable := GridPathfinder.reachable_cells(
+					actor.grid_position, actor.effective_move_range(), IsometricGrid.MAP_SIZE,
+					blocked, _occupied(heroes, enemies), heights, actor.max_climb
+				)
+				var destination := _best_destination(actor, target, reachable, heights, blocked)
+				if destination != actor.grid_position:
+					actor.grid_position = destination
+					actor.elevation = int(heights.get(destination, 0))
+					actions += 1
+			target = _nearest_target(actor, opponents)
+			if target != null and _apply_best_attack(actor, target, heights, blocked):
+				actions += 1
 		if not heroes.any(func(unit: UnitData): return unit.is_alive()):
 			return {"finished": true, "winner": UnitData.Team.ENEMIES, "rounds": completed_rounds, "actions": actions}
-		if _heroes_completed_objective(mission, heroes, enemies, completed_rounds, true):
+		if _heroes_completed_objective(mission, heroes, enemies, completed_rounds, false):
+			return {"finished": true, "winner": UnitData.Team.HEROES, "rounds": completed_rounds, "actions": actions}
+		var began_new_round := turn_manager.complete_active_turn(all_units)
+		if began_new_round and _heroes_completed_objective(mission, heroes, enemies, completed_rounds, true):
 			return {"finished": true, "winner": UnitData.Team.HEROES, "rounds": completed_rounds, "actions": actions}
 	return {"finished": false, "winner": -1, "rounds": completed_rounds, "actions": actions}
 
-static func _run_team(
-	team: Array[UnitData],
-	opponents: Array[UnitData],
-	heroes: Array[UnitData],
-	enemies: Array[UnitData],
-	heights: Dictionary,
-	blocked: Dictionary
-) -> int:
-	var actions := 0
-	for actor in team:
-		if not actor.is_alive():
-			continue
-		actor.begin_turn()
-		actor.process_status_turn()
-		if not actor.is_alive():
-			continue
-		var target := _nearest_target(actor, opponents)
-		if target == null:
-			break
-		if not _can_attack(actor, target, heights, blocked):
-			var reachable := GridPathfinder.reachable_cells(
-				actor.grid_position, actor.effective_move_range(), IsometricGrid.MAP_SIZE,
-				blocked, _occupied(heroes, enemies), heights, actor.max_climb
-			)
-			var destination := _best_destination(actor, target, reachable, heights, blocked)
-			if destination != actor.grid_position:
-				actor.grid_position = destination
-				actor.elevation = int(heights.get(destination, 0))
-				actions += 1
-		target = _nearest_target(actor, opponents)
-		if target != null and _apply_best_attack(actor, target, heights, blocked):
-			actions += 1
-	return actions
+static func _unit_by_id(unit_id: String, units: Array[UnitData]) -> UnitData:
+	for unit in units:
+		if unit.unit_id == unit_id:
+			return unit
+	return null
 
 static func _apply_best_attack(actor: UnitData, target: UnitData, heights: Dictionary, blocked: Dictionary) -> bool:
 	for ability in actor.abilities:
 		if CombatRules.can_use_ability(actor, target, ability, heights, blocked):
 			actor.mp -= ability.mp_cost
-			CombatRules.apply_damage(target, CombatRules.ability_damage(actor, target, ability, heights))
-			if not ability.status_effect_path.is_empty() and target.is_alive():
+			actor.start_ability_cooldown(ability)
+			if ability.deals_damage():
+				for hit_index in ability.hit_count:
+					if target.is_alive():
+						CombatRules.apply_damage(target, CombatRules.ability_damage(actor, target, ability, heights))
+			if ability.applies_status() and not ability.status_effect_path.is_empty() and target.is_alive():
 				target.add_status(load(ability.status_effect_path) as StatusEffectData)
 			return true
 	if CombatRules.can_basic_attack(actor, target, heights, blocked):

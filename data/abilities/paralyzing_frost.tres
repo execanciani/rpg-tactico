@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"paralyzing_frost"
+display_name = "Escarcha paralizante"
+description = "Explosión gélida que daña y reduce el movimiento en un área."
+mp_cost = 7
+range_cells = 4
+power = 3
+damage_type = 1
+ability_type = 2
+area_radius = 1
+cooldown_turns = 3
+status_effect_path = "res://data/status_effects/chilled.tres"

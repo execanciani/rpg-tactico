@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"double_shot"
+display_name = "Disparo doble"
+description = "Ejecuta dos impactos consecutivos de potencia reducida."
+mp_cost = 6
+range_cells = 5
+power = 1
+cooldown_turns = 2
+hit_count = 2
+damage_scale = 0.65

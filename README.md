@@ -6,7 +6,7 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 
 1. Abrí `project.godot` con Godot 4.7.2.
 2. Presioná **F6/F5** o **Ejecutar proyecto**.
-3. Avanzá los diálogos y seleccioná una unidad azul.
+3. Avanzá los diálogos; la unidad activa se selecciona automáticamente según su velocidad.
 
 ### Controles
 
@@ -29,8 +29,14 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 - Movimiento con coste vertical y límite de escalada por clase.
 - Línea de visión bloqueada por rocas y crestas.
 - Daño físico y mágico con bonificación por altura.
-- Escarcha: reduce temporalmente el movimiento.
+- Iniciativa individual ordenada por velocidad, con desempate estable y exclusión inmediata de derrotados.
+- Seis habilidades de héroe externas: Golpe poderoso, Guardia de acero, Lanza glacial, Escarcha paralizante, Flecha precisa y Disparo doble.
+- Coste de MP, enfriamientos, objetivos propios/aliados/enemigos, área y múltiples impactos.
+- Previsualización de ruta antes de confirmar el movimiento y animación casilla por casilla.
+- Escarcha acumulable: reduce temporalmente el movimiento.
+- Guardia de acero: aumenta temporalmente las defensas.
 - Quemadura: causa daño al comienzo del turno.
+- IA determinista que prioriza habilidades según daño, área y estados.
 
 ### Progresión
 
@@ -52,10 +58,11 @@ Cada misión tiene briefing, diálogo introductorio, diálogo de victoria y reco
 
 ### Guardado
 
-Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 3 conserva:
+Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 4 conserva y migra partidas de la versión 3:
 
 - Misión y ronda actual.
-- HP, MP, posiciones y estados alterados.
+- HP, MP, posiciones, estados alterados y enfriamientos.
+- Cola de iniciativa, unidad activa y acciones ya realizadas en la ronda.
 - Nivel y experiencia de los héroes.
 - Oro, inventario, equipo y misiones completadas.
 
@@ -66,7 +73,7 @@ Sólo se guarda durante el turno del jugador para evitar estados intermedios de 
 - `data/abilities`: habilidades y estados aplicados.
 - `data/archetypes`: estadísticas base de héroes y enemigos.
 - `data/items`: consumibles y equipo.
-- `data/status_effects`: escarcha y quemadura.
+- `data/status_effects`: escarcha, quemadura y mejoras defensivas.
 - `data/missions`: mapa, objetivo, diálogo y recompensas.
 - `scripts/domain`: recursos y estado de unidades, objetos e inventario.
 - `scripts/core`: reglas, comandos, controlador y simulador determinista.
@@ -83,7 +90,7 @@ Sólo se guarda durante el turno del jugador para evitar estados intermedios de 
 & 'C:\ruta\a\Godot_v4.7.2-stable_win64_console.exe' --headless --path . --script res://tests/smoke_test.gd
 ```
 
-La prueba cubre recursos externos, navegación, altura, visión, inventario, equipo, consumibles, estados, experiencia, recompensas, objetivos, diálogos, guardado real temporal, carga de escena y simulaciones completas de las tres misiones.
+La prueba cubre recursos externos, navegación válida e inválida, altura, visión, iniciativa, alcance, MP, enfriamientos, daño, estados y expiración, muerte, victoria/derrota, inventario, progresión, guardado, carga de escena y simulaciones completas de las tres misiones.
 
 ## Alcance pendiente
 
