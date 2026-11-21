@@ -46,6 +46,16 @@ func _test_pathfinding() -> void:
 	_expect(reachable.has(Vector2i(0, 2)), "El pathfinder omitió una casilla alcanzable.")
 	var path := GridPathfinder.find_path(Vector2i.ZERO, Vector2i(2, 0), Vector2i(4, 4), blocked, occupied, 4)
 	_expect(path.size() == 4, "El pathfinder no rodeó correctamente el obstáculo.")
+	var occupied_goal := {Vector2i(2, 0): "other_unit"}
+	var blocked_goal_path := GridPathfinder.find_path(
+		Vector2i.ZERO, Vector2i(2, 0), Vector2i(4, 4),
+		{}, occupied_goal, 4
+	)
+	_expect(blocked_goal_path.is_empty(), "El pathfinder permitió terminar sobre otra unidad.")
+	_expect(
+		GridPathfinder.find_path(Vector2i.ZERO, Vector2i(4, 0), Vector2i(4, 4), {}, {}, 6).is_empty(),
+		"El pathfinder permitió salir del tablero."
+	)
 
 func _test_combat_rules() -> void:
 	var attacker := UnitData.new()
@@ -272,6 +282,30 @@ func _test_inventory_phase_four() -> void:
 	var total_before := full.item_quantity("iron_sword")
 	_expect(full.add_item("leather_armor", 1) == 1 and full.item_quantity("iron_sword") == total_before, "El inventario lleno perdio objetos o acepto una ranura inexistente.")
 	_expect(not full.discard_from_slot(0, 2), "El descarte permitio una cantidad mayor a la disponible.")
+	# Los datos externos pueden venir de un JSON modificado o de una partida antigua.
+	# Un 'state' que no sea diccionario no debe producir una excepción al cargar.
+	var malformed_slot := InventorySlotData.normalized({
+		"item_id": "iron_sword", "quantity": 1, "state": "valor inválido"
+	}, 0)
+	_expect(malformed_slot.state == {}, "La normalización conservó un estado de objeto inválido.")
+	var damaged_snapshot := profile.make_snapshot()
+	var damaged_characters: Dictionary = damaged_snapshot["characters"]
+	var damaged_character: Dictionary = damaged_characters[progress.character_id]
+	var damaged_slots: Array = damaged_character["inventory_slots"]
+	var slot_with_item := -1
+	for slot_index in damaged_slots.size():
+		if not str(damaged_slots[slot_index].get("item_id", "")).is_empty():
+			slot_with_item = slot_index
+			break
+	if slot_with_item >= 0:
+		damaged_slots[slot_with_item]["state"] = "valor inválido"
+		var sanitized_profile := CampaignProfile.new()
+		sanitized_profile.restore(damaged_snapshot)
+		var sanitized_character := sanitized_profile.character(progress.character_id)
+		_expect(
+			sanitized_character != null and sanitized_character.inventory_slot(slot_with_item).get("state", {}) == {},
+			"Restaurar una partida con estado de objeto inválido falló."
+		)
 
 func _test_height_and_line_of_sight() -> void:
 	var heights := {Vector2i(1, 0): 2, Vector2i(0, 1): 1}
