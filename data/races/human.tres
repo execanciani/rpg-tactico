@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="RaceData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/race_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+race_id = "human"
+display_name = "Humano"
+description = "Pueblo versátil con aptitud equilibrada para disciplinas físicas y mágicas."
+base_attributes = {"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "MEN": 10}
+racial_modifiers = {"STR": 1, "WIS": 1}
+allowed_initial_professions = Array[String](["warrior", "mage", "archer", "acolyte", "explorer"])

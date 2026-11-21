@@ -11,18 +11,22 @@ func _run() -> void:
 	_test_structured_command()
 	_test_external_resources()
 	_test_height_and_line_of_sight()
-	_test_inventory_and_equipment()
 	_test_status_effects()
 	_test_turn_order()
 	_test_abilities_and_cooldowns()
 	_test_death_and_outcome()
+	_test_races_and_stat_calculation()
+	_test_character_roster()
+	_test_experience_and_level_limits()
+	_test_skill_points_and_learning()
+	_test_profession_changes()
 	_test_campaign_progression()
 	_test_mission_objectives_and_dialogue()
 	_test_save_round_trip()
 	_test_complete_battles()
 	await _test_main_scene()
 	if failures.is_empty():
-		print("SMOKE TEST OK: rutas, reglas, comandos y escena principal")
+		print("SMOKE TEST OK: combate, razas, profesiones, niveles, SP, persistencia e interfaz")
 		quit(0)
 	else:
 		for failure in failures:
@@ -80,21 +84,6 @@ func _test_height_and_line_of_sight() -> void:
 	_expect(reachable.has(Vector2i(0, 1)), "Una subida válida quedó fuera del movimiento.")
 	_expect(not CombatRules.has_line_of_sight(Vector2i.ZERO, Vector2i(0, 3), {}, {Vector2i(0, 1): true}), "Un obstáculo no bloqueó la línea de visión.")
 	_expect(CombatRules.has_line_of_sight(Vector2i.ZERO, Vector2i(0, 3), {}, {}), "Una línea de visión despejada fue rechazada.")
-
-func _test_inventory_and_equipment() -> void:
-	var inventory := InventoryState.new()
-	inventory.initialize_default()
-	var archetype := load("res://data/archetypes/hero_warrior.tres") as UnitArchetype
-	var warrior := archetype.instantiate("hero_warrior", UnitData.Team.HEROES, Vector2i.ZERO)
-	inventory.apply_equipment(warrior)
-	_expect(warrior.physical_attack == 17 and warrior.max_hp == 54, "El equipo inicial no aplicó sus bonificaciones.")
-	warrior.hp = 20
-	var previous_quantity := inventory.quantity("health_potion")
-	_expect(inventory.consume(warrior, "health_potion"), "No se pudo consumir una poción válida.")
-	_expect(warrior.hp == 38 and inventory.quantity("health_potion") == previous_quantity - 1, "El consumible no restauró HP o no descontó inventario.")
-	var archer_archetype := load("res://data/archetypes/hero_archer.tres") as UnitArchetype
-	var archer := archer_archetype.instantiate("hero_archer", UnitData.Team.HEROES, Vector2i.ZERO)
-	_expect(not inventory.equip_item(archer, "guard_armor"), "Una única armadura pudo equiparse simultáneamente en dos héroes.")
 
 func _test_status_effects() -> void:
 	var unit := UnitData.new()
@@ -191,8 +180,113 @@ func _test_campaign_progression() -> void:
 	profile.award_mission(load("res://data/missions/mission_02.tres") as MissionData, heroes)
 	var advanced := archetype.instantiate("hero_warrior", UnitData.Team.HEROES, Vector2i.ZERO)
 	profile.apply_to_hero(advanced)
-	_expect(advanced.level == 2 and advanced.max_hp == 58, "La experiencia o el equipo persistente no produjeron estadísticas válidas.")
-	_expect(profile.gold == 65, "Las recompensas monetarias no persistieron.")
+	var progress := profile.character("hero_warrior")
+	_expect(progress.total_experience == 100 and advanced.max_hp > 0 and advanced.race_id == "human", "La experiencia o las estadísticas persistentes no se integraron al combate.")
+	_expect(advanced.abilities.size() == 2, "Las habilidades aprendidas no se integraron con la unidad de combate.")
+
+func _test_races_and_stat_calculation() -> void:
+	var profile := CampaignProfile.new()
+	profile.initialize_default()
+	_expect(profile.catalog.races.size() == 5, "No se cargaron las cinco razas requeridas.")
+	_expect(profile.catalog.professions.size() == 23, "El árbol profesional externo tiene referencias faltantes.")
+	_expect(profile.catalog.abilities.size() == 12, "No se cargaron las habilidades existentes y las seis habilidades nuevas.")
+	_expect(profile.catalog.races.size() == 5, "No se cargaron las cinco razas jugables.")
+	_expect(profile.catalog.professions.size() >= 23, "El árbol profesional externo está incompleto.")
+	var human := profile.catalog.race("human")
+	var orc := profile.catalog.race("orc")
+	_expect(human.allows_profession("mage") and not orc.allows_profession("mage"), "Los requisitos raciales de profesiones no se aplicaron.")
+	var human_character := CharacterProgress.new()
+	human_character.setup("human_test", "Humano", human, "warrior")
+	var orc_character := CharacterProgress.new()
+	orc_character.setup("orc_test", "Orco", orc, "warrior")
+	var human_stats := StatCalculator.calculate(human_character, human, profile.catalog.profession("warrior"))
+	var orc_stats := StatCalculator.calculate(orc_character, orc, profile.catalog.profession("warrior"))
+	_expect(int(orc_stats.derived.max_hp) > int(human_stats.derived.max_hp), "Los modificadores raciales no alteraron las estadísticas derivadas.")
+	_expect(int(human_stats.derived.speed) > int(orc_stats.derived.speed), "La especialización racial no refleja la diferencia de velocidad.")
+	var repeated := StatCalculator.calculate(human_character, human, profile.catalog.profession("warrior"))
+	_expect(repeated == human_stats, "El cálculo de estadísticas acumuló bonificaciones entre llamadas.")
+	var equipped := StatCalculator.calculate(human_character, human, profile.catalog.profession("warrior"), {
+		"attributes": {"STR": 2}, "derived": {"max_hp": 5},
+	})
+	_expect(int(equipped.attributes.STR) == int(human_stats.attributes.STR) + 2 and int(equipped.derived.max_hp) == int(human_stats.derived.max_hp) + 7, "El punto de extensión de bonificaciones de equipo no recalculó las estadísticas.")
+	var creation_profile := CampaignProfile.new()
+	creation_profile.initialize_new()
+	_expect(creation_profile.create_character("dwarf_explorer", "Borin", "dwarf", "explorer") != null, "No se pudo crear un personaje con raza y profesión compatibles.")
+	_expect(creation_profile.create_character("invalid_dwarf_mage", "Error", "dwarf", "mage") == null, "Se creó un personaje con una profesión racial no permitida.")
+
+func _test_character_roster() -> void:
+	var profile := CampaignProfile.new()
+	profile.initialize_new()
+	_expect(profile.characters.is_empty() and profile.slot_ids.is_empty() and profile.formation_ids.is_empty(), "Una partida nueva no comenzó con tres espacios vacíos.")
+	_expect(not profile.validate_character_name("ab").is_empty(), "Se aceptó un nombre demasiado corto.")
+	_expect(not profile.validate_character_name("nombre demasiado largo").is_empty(), "Se aceptó un nombre demasiado largo.")
+	_expect(not profile.validate_character_name("Ana\nX").is_empty(), "Se aceptó un carácter de control.")
+	var first := profile.create_character_auto("  Aria   Sol  ", "human", "warrior")
+	_expect(first != null and first.display_name == "Aria Sol" and first.character_id == "character_001", "El primer personaje no normalizó el nombre o perdió su identificador estable.")
+	_expect(profile.create_character_auto("aria sol", "elf", "mage") == null, "Se aceptó un nombre duplicado ignorando mayúsculas.")
+	var second := profile.create_character_auto("Nara", "orc", "acolyte")
+	var third := profile.create_character_auto("Borin", "dwarf", "explorer")
+	_expect(second != null and third != null and profile.characters.size() == 3, "No se ocuparon correctamente los tres espacios.")
+	_expect(profile.create_character_auto("Cuarto", "human", "archer") == null, "Se permitió crear más de tres personajes.")
+	_expect(profile.toggle_formation_character(second.character_id) and profile.formation_ids.size() == 2, "No se pudo cambiar la formación seleccionada.")
+	var snapshot := profile.make_snapshot()
+	var restored := CampaignProfile.new()
+	restored.restore(snapshot)
+	_expect(restored.slot_ids == profile.slot_ids and restored.formation_ids == profile.formation_ids, "El guardado no conservó espacios y formación.")
+	_expect(restored.delete_character(second.character_id) and restored.characters.size() == 2 and not restored.slot_ids.has(second.character_id), "Eliminar un personaje no liberó su espacio.")
+	var legacy := CampaignProfile.new()
+	legacy.initialize_default()
+	var legacy_snapshot := legacy.make_snapshot()
+	legacy_snapshot.erase("slot_ids")
+	legacy_snapshot.erase("formation_ids")
+	var migrated := CampaignProfile.new()
+	migrated.restore(legacy_snapshot)
+	_expect(migrated.characters.size() == 3 and migrated.formation_ids.size() == 3, "Una partida anterior no migró su formación predeterminada.")
+
+func _test_experience_and_level_limits() -> void:
+	var race := load("res://data/races/human.tres") as RaceData
+	var progress := CharacterProgress.new()
+	progress.setup("xp_test", "Prueba", race, "warrior")
+	var multi_result := progress.gain_experience(ExperienceRules.total_xp_for_level(5) + 7)
+	_expect(progress.level == 5 and int(multi_result.levels_gained) == 4, "La subida de varios niveles simultáneos falló.")
+	_expect(progress.sp_available == 8 and int(multi_result.sp_gained) == 8, "Los SP no se otorgaron al subir de nivel.")
+	var before_negative := progress.total_experience
+	progress.gain_experience(-500)
+	_expect(progress.total_experience == before_negative, "La experiencia negativa modificó el progreso.")
+	progress.gain_experience(ExperienceRules.MAX_EXPERIENCE_GAIN)
+	_expect(progress.level == ExperienceRules.MAX_LEVEL, "No se respetó o alcanzó el nivel máximo configurable.")
+	var capped_xp := progress.total_experience
+	progress.gain_experience(999999)
+	_expect(progress.level == 80 and progress.total_experience == capped_xp, "La experiencia superó el límite del nivel 80.")
+
+func _test_skill_points_and_learning() -> void:
+	var profile := CampaignProfile.new()
+	profile.initialize_default()
+	var warrior := profile.character("hero_warrior")
+	warrior.level = 5
+	warrior.total_experience = ExperienceRules.total_xp_for_level(5)
+	warrior.sp_available = 3
+	_expect(profile.learn_ability("hero_warrior", "blade_arc"), "No se pudo aprender una habilidad con requisitos válidos.")
+	_expect(warrior.sp_available == 0 and warrior.sp_spent == 3, "El gasto de SP no se registró correctamente.")
+	_expect(not profile.learn_ability("hero_warrior", "blade_arc"), "Se permitió aprender una habilidad duplicada.")
+	var mage_skill := profile.catalog.ability("arcane_burst")
+	warrior.sp_available = 20
+	_expect(not warrior.can_learn(mage_skill), "Un Guerrero pudo aprender una habilidad exclusiva de Mago.")
+
+func _test_profession_changes() -> void:
+	var profile := CampaignProfile.new()
+	profile.initialize_default()
+	var warrior := profile.character("hero_warrior")
+	var swordsman := profile.catalog.profession("swordsman")
+	warrior.level = 19
+	_expect(not warrior.change_profession(swordsman), "El cambio de profesión ignoró el nivel mínimo.")
+	warrior.level = 20
+	_expect(warrior.change_profession(swordsman) and warrior.profession_id == "swordsman", "El cambio explícito a Espadachín falló.")
+	var master := profile.catalog.profession("blade_master")
+	_expect(not warrior.change_profession(master), "La segunda evolución ignoró el requisito de nivel 40.")
+	warrior.level = 40
+	_expect(warrior.change_profession(master), "La rama completa Guerrero → Espadachín → Maestro de Espadas no funciona.")
+	_expect(warrior.profession_history == ["warrior", "swordsman", "blade_master"], "El historial de profesiones no se conservó.")
 
 func _test_mission_objectives_and_dialogue() -> void:
 	var extraction := load("res://data/missions/mission_02.tres") as MissionData
@@ -204,13 +298,35 @@ func _test_mission_objectives_and_dialogue() -> void:
 func _test_save_round_trip() -> void:
 	var source := {"mission_index": 1, "round": 4, "units": [{"unit_id": "hero_mage", "hp": 17}]}
 	var profile := CampaignProfile.new()
-	profile.initialize_default()
+	profile.initialize_new()
+	profile.create_character("hero_mage", "Lyra", "elf", "mage", ["ice_lance", "paralyzing_frost"])
+	var mage_progress := profile.character("hero_mage")
+	mage_progress.gain_experience(ExperienceRules.total_xp_for_level(6))
+	mage_progress.sp_available += 10
+	profile.learn_ability("hero_mage", "arcane_burst")
+	var created_character := profile.create_character_auto("Nara", "orc", "acolyte")
 	source["profile"] = profile.make_snapshot()
 	var restored := SaveSystem.decode_payload(SaveSystem.encode_payload(source))
 	var legacy := SaveSystem.decode_payload(JSON.stringify({"version": 3, "mission_index": 0}))
 	_expect(int(legacy.get("version", -1)) == SaveSystem.SAVE_VERSION, "Una partida versión 3 no fue migrada al formato actual.")
 	_expect(int(restored.get("mission_index", -1)) == 1, "El guardado perdió el progreso de campaña.")
 	_expect(int(restored.get("round", -1)) == 4, "El guardado perdió la ronda actual.")
+	var restored_profile := CampaignProfile.new()
+	restored_profile.restore(restored.profile)
+	var restored_mage := restored_profile.character("hero_mage")
+	_expect(restored_mage.level == 6 and restored_mage.learned_ability_ids.has("arcane_burst"), "El guardado y carga no conservaron nivel y habilidades del personaje.")
+	var restored_created := restored_profile.character(created_character.character_id)
+	_expect(restored_created != null and restored_created.display_name == "Nara" and restored_created.race_id == "orc", "El guardado no conservó un personaje creado por el jugador.")
+	var manipulated_profile := CampaignProfile.new()
+	manipulated_profile.restore({"characters": {"hero_warrior": {
+		"character_id": "identificador_falso", "display_name": "", "race_id": "dwarf",
+		"profession_id": "mage", "profession_history": ["mage", "inventada"],
+		"base_attributes": {"STR": -500}, "learned_ability_ids": ["arcane_burst", "inventada"],
+	}}})
+	var sanitized := manipulated_profile.character("hero_warrior")
+	_expect(sanitized.character_id == "hero_warrior" and sanitized.profession_id == "warrior", "La carga no saneó una profesión incompatible.")
+	_expect(int(sanitized.base_attributes.STR) == 1 and sanitized.learned_ability_ids.is_empty(), "La carga aceptó atributos o habilidades manipulados.")
+	_expect(SaveSystem.decode_payload("{archivo corrupto").is_empty(), "Un archivo corrupto fue aceptado como guardado válido.")
 	var temporary_path := "res://tests/.temporary_save_test.json"
 	var written := SaveSystem.save_game(source, temporary_path)
 	var loaded := SaveSystem.load_game(temporary_path)
@@ -236,8 +352,48 @@ func _test_main_scene() -> void:
 	get_root().add_child(scene)
 	await process_frame
 	_expect(scene.get_node_or_null("IsometricGrid") != null, "La escena no contiene la cuadrícula.")
-	_expect(scene.get_node("Units").get_child_count() == 6, "La escena no creó las seis unidades requeridas.")
-	_expect(scene.get_node_or_null("Interface/BattleUI") != null, "La escena no contiene la interfaz de combate.")
+	scene.campaign.profile.initialize_new()
+	scene.character_selection.configure(scene.campaign.profile)
+	_expect(scene.get_node("Units").get_child_count() == 0, "Una partida nueva creó unidades antes de seleccionar personajes.")
+	_expect(scene.character_selection.visible and scene.character_selection.slots_row.get_child_count() == 3, "La pantalla inicial no mostró tres espacios.")
+	_expect(scene.character_selection.start_button.disabled, "Comenzar aventura se habilitó sin personajes.")
+	var empty_card := scene.character_selection.slots_row.get_child(0) as CharacterSlotCard
+	empty_card.empty_pressed.emit()
+	_expect(scene.character_selection.creation_overlay.visible and scene.character_selection.creation_step == 0, "Presionar un espacio vacío no abrió la selección de raza.")
+	var race_panel := scene.character_selection.creation_content.get_child(0) as RaceSelectionPanel
+	race_panel.race_selected.emit("orc")
+	scene.character_selection._next_creation_step()
+	var profession_panel := scene.character_selection.creation_content.get_child(0) as ProfessionSelectionPanel
+	var profession_grid := profession_panel.get_child(0) as GridContainer
+	_expect(profession_grid.get_child_count() == 2, "La interfaz no filtró las profesiones reales permitidas para el Orco.")
+	scene.character_selection.creation_overlay.visible = false
+	var created: CharacterProgress = scene.campaign.profile.create_character_auto("Aria", "human", "warrior")
+	scene.character_selection.refresh()
+	_expect(created != null and not scene.character_selection.start_button.disabled, "Un personaje creado no ocupó el espacio ni habilitó la aventura.")
+	scene.character_selection._request_delete(created.character_id)
+	_expect(scene.character_selection.delete_dialog.visible, "Eliminar no mostró una confirmación clara.")
+	scene.character_selection.delete_dialog.hide()
+	scene.character_selection.visible = false
+	scene.get_node("Interface/BattleUI").visible = true
+	scene._start_mission(0, false)
+	await process_frame
+	_expect(scene.hero_views.size() == 1 and scene.get_node("Units").get_child_count() == 4, "La batalla no se adaptó a una formación de un personaje.")
+	_expect(scene.hero_views[0].data.unit_id == created.character_id and scene.hero_views[0].data.race_id == "human" and scene.hero_views[0].data.abilities.size() == 2, "El combate no utilizó la identidad, raza y habilidades del personaje creado.")
+	var second: CharacterProgress = scene.campaign.profile.create_character_auto("Nara", "orc", "acolyte")
+	scene._start_mission(0, false)
+	await process_frame
+	_expect(second != null and scene.hero_views.size() == 2, "La batalla no se adaptó a una formación de dos personajes.")
+	var third: CharacterProgress = scene.campaign.profile.create_character_auto("Borin", "dwarf", "explorer")
+	scene._start_mission(0, false)
+	await process_frame
+	_expect(third != null and scene.hero_views.size() == 3, "La batalla no se adaptó a una formación de tres personajes.")
+	var battle_ui := scene.get_node_or_null("Interface/BattleUI") as BattleUI
+	_expect(battle_ui != null, "La escena no contiene la interfaz de combate.")
+	if battle_ui != null:
+		battle_ui.show_progression(scene.campaign.profile, created.character_id, "character")
+		battle_ui.show_unit(scene.hero_views[0].data)
+		_expect(battle_ui.progression_overlay.visible and battle_ui.progression_content.get_child_count() > 0, "La interfaz de progresión no mostró el personaje.")
+		battle_ui.hide_progression()
 	scene.queue_free()
 
 func _expect(condition: bool, message: String) -> void:

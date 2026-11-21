@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "summoner"
+display_name = "Invocador"
+description = "Canalizador de espíritus; rama preparada para invocaciones futuras."
+previous_profession_id = "mage"
+minimum_level = 20
+attribute_modifiers = {"WIS": 4, "MEN": 3, "INT": 2}
+growth_attributes = {"WIS": 3, "MEN": 2, "INT": 1}
+derived_modifiers = {"max_mp": 20, "effect_resistance": 8}
+evolution_ids = Array[String](["spirit_master"])

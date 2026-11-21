@@ -12,3 +12,4 @@ range_cells = 5
 power = 8
 damage_type = 1
 cooldown_turns = 1
+required_profession_ids = Array[String](["mage", "elementalist"])

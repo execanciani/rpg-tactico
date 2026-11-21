@@ -6,20 +6,32 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 
 1. Abrí `project.godot` con Godot 4.7.2.
 2. Presioná **F6/F5** o **Ejecutar proyecto**.
-3. Avanzá los diálogos; la unidad activa se selecciona automáticamente según su velocidad.
+3. Creá entre uno y tres personajes en los espacios vacíos.
+4. Elegí la formación y pulsá **COMENZAR AVENTURA**.
+5. Avanzá los diálogos; la unidad activa se selecciona automáticamente según su velocidad.
+
+### Selección de personajes
+
+- Una partida nueva comienza con tres espacios vacíos y no agrega héroes automáticamente.
+- El botón `+` abre un flujo de cuatro pasos: raza, profesión compatible, vista previa y nombre.
+- Los nombres deben tener entre 3 y 16 caracteres, no pueden repetirse ni contener controles.
+- Cada tarjeta permite seleccionar, consultar información o solicitar la eliminación del personaje.
+- La eliminación siempre requiere confirmación.
+- La creación, eliminación y formación se guardan automáticamente.
+- Se puede comenzar el combate con uno, dos o tres integrantes.
 
 ### Controles
 
 - `M`: mover.
 - `A`: atacar.
 - `S`: habilidad.
-- `I`: objetos y equipo.
 - `W` o `Espacio`: esperar.
 - `Esc`: cancelar el modo actual.
 - Flechas: desplazar la cámara.
 - Botón central/derecho y arrastre: desplazar la cámara.
 - Rueda: zoom.
 - Android: toque para seleccionar y gesto de dos dedos para desplazar o ampliar.
+- Botón **Progreso**: abre Personaje, Profesiones y Habilidades durante un turno disponible.
 
 ## Sistemas implementados
 
@@ -40,11 +52,18 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 
 ### Progresión
 
-- Experiencia y niveles persistentes.
-- Mejoras de HP, MP, ataque y defensa al subir de nivel.
-- Monedas y recompensas por misión.
-- Inventario persistente con consumibles, armas y armadura.
-- Equipo restringido por clase y aplicado en las siguientes misiones.
+- Cinco razas originales configuradas en recursos: Humanos, Elfos, Elfos oscuros, Orcos y Enanos.
+- Atributos STR, DEX, CON, INT, WIS y MEN con modificadores raciales.
+- Estadísticas derivadas centralizadas: HP/MP, ataques, defensas, precisión, evasión, crítico, velocidad, movimiento y resistencia.
+- Cinco profesiones iniciales y árbol externo de evoluciones para niveles 20 y 40.
+- Rama Guerrero → Espadachín/Guardián → Maestro de Espadas/Protector de Hierro completamente funcional.
+- Curva de experiencia configurable de nivel 1 a 80, incluyendo varias subidas simultáneas.
+- Skill Points obtenidos al subir de nivel, requisitos, gasto y prevención de aprendizajes duplicados.
+- Seis habilidades aprendibles nuevas, además de las habilidades de combate existentes.
+- Pantallas táctiles de personaje, profesiones y aprendizaje de habilidades.
+- Pantalla inicial independiente para creación, selección y gestión de hasta tres personajes.
+- Retratos provisionales originales generados mediante código y reemplazables por recursos pixel art.
+- Para reemplazarlos, se puede colocar `assets/portraits/races/<race_id>.png` o `assets/portraits/classes/<profession_id>.png`; la interfaz los carga automáticamente con filtrado nearest-neighbor.
 
 ### Campaña
 
@@ -58,13 +77,15 @@ Cada misión tiene briefing, diálogo introductorio, diálogo de victoria y reco
 
 ### Guardado
 
-Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 4 conserva y migra partidas de la versión 3:
+Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 6 conserva y migra partidas desde la versión 3:
 
 - Misión y ronda actual.
 - HP, MP, posiciones, estados alterados y enfriamientos.
 - Cola de iniciativa, unidad activa y acciones ya realizadas en la ronda.
-- Nivel y experiencia de los héroes.
-- Oro, inventario, equipo y misiones completadas.
+- Raza, profesión e historial profesional de cada personaje.
+- Nivel, experiencia total, SP disponible/gastado y habilidades aprendidas.
+- Atributos base permanentes; las estadísticas derivadas se recalculan al cargar.
+- Personajes creados, espacios ocupados, formación seleccionada y misiones completadas.
 
 Sólo se guarda durante el turno del jugador para evitar estados intermedios de animaciones o IA.
 
@@ -72,16 +93,19 @@ Sólo se guarda durante el turno del jugador para evitar estados intermedios de 
 
 - `data/abilities`: habilidades y estados aplicados.
 - `data/archetypes`: estadísticas base de héroes y enemigos.
-- `data/items`: consumibles y equipo.
+- `data/races`: cinco razas y sus profesiones iniciales permitidas.
+- `data/professions`: árbol profesional definido completamente mediante datos.
 - `data/status_effects`: escarcha, quemadura y mejoras defensivas.
 - `data/missions`: mapa, objetivo, diálogo y recompensas.
-- `scripts/domain`: recursos y estado de unidades, objetos e inventario.
+- `scripts/domain`: recursos y estado permanente o temporal de personajes y unidades.
 - `scripts/core`: reglas, comandos, controlador y simulador determinista.
 - `scripts/campaign`: catálogo de misiones y perfil persistente.
 - `scripts/grid`: mapa isométrico y navegación con altura.
 - `scripts/persistence`: guardado JSON versionado.
 - `scripts/presentation`: cámara, unidades procedurales y efectos.
-- `scripts/ui`: HUD, inventario, diálogos y resultados.
+- `scripts/ui`: HUD, progresión, creación de personajes, diálogos y resultados.
+- `scenes/ui`: escenas reutilizables de selección, tarjetas, razas, profesiones, vista previa y confirmación.
+- `assets/portraits` y `assets/sprites`: ubicaciones preparadas para reemplazar retratos y sprites provisionales.
 - `tests`: pruebas automáticas de sistemas y combates completos.
 
 ## Pruebas
@@ -90,8 +114,8 @@ Sólo se guarda durante el turno del jugador para evitar estados intermedios de 
 & 'C:\ruta\a\Godot_v4.7.2-stable_win64_console.exe' --headless --path . --script res://tests/smoke_test.gd
 ```
 
-La prueba cubre recursos externos, navegación válida e inválida, altura, visión, iniciativa, alcance, MP, enfriamientos, daño, estados y expiración, muerte, victoria/derrota, inventario, progresión, guardado, carga de escena y simulaciones completas de las tres misiones.
+La prueba cubre modificadores raciales, cálculo idempotente de estadísticas, experiencia, múltiples niveles, límite 80, SP, aprendizaje, profesiones, persistencia de personajes, navegación, combate y simulaciones completas de las tres misiones.
 
 ## Alcance pendiente
 
-Quedan para fases posteriores una pantalla de gestión entre misiones, tiendas, árboles de habilidades, más objetos y estados, objetivos con múltiples etapas, sprites y animaciones definitivas, audio, localización y multijugador.
+Quedan para fases posteriores bonificaciones reales de equipamiento, habilidades exclusivas para todas las ramas avanzadas, tercera evolución de nivel 76, sprites definitivos, audio, localización y multijugador.

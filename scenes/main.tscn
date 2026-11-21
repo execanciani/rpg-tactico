@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/battle_controller.gd" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/grid/isometric_grid.gd" id="2_grid"]
 [ext_resource type="Script" path="res://scripts/ui/battle_ui.gd" id="3_ui"]
 [ext_resource type="Script" path="res://scripts/presentation/tactical_camera.gd" id="4_camera"]
+[ext_resource type="PackedScene" path="res://scenes/ui/character_selection_screen.tscn" id="5_selection"]
 
 [node name="Battle" type="Node2D"]
 script = ExtResource("1_controller")
@@ -36,3 +37,5 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("3_ui")
+
+[node name="CharacterSelectionScreen" parent="Interface" instance=ExtResource("5_selection")]

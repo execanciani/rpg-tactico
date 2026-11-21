@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "flame_sorcerer"
+display_name = "Hechicero Ígneo"
+description = "Maestro de la magia elemental ofensiva."
+previous_profession_id = "elementalist"
+minimum_level = 40
+attribute_modifiers = {"INT": 9, "WIS": 2, "MEN": 2}
+growth_attributes = {"INT": 4, "WIS": 1, "MEN": 1}
+derived_modifiers = {"magical_attack": 15, "max_mp": 20}
+ability_ids = Array[String](["arcane_burst", "astral_lance"])

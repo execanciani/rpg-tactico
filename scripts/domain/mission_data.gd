@@ -16,9 +16,6 @@ enum ObjectiveType { ELIMINATE_ALL, REACH_CELL, SURVIVE_ROUNDS }
 @export var objective_cell := Vector2i(-1, -1)
 @export var survive_rounds := 0
 @export var reward_xp := 40
-@export var reward_gold := 25
-@export var reward_item_ids: Array[String] = []
-@export var reward_item_quantities: Array[int] = []
 @export var intro_dialogue: Array[String] = []
 @export var victory_dialogue: Array[String] = []
 

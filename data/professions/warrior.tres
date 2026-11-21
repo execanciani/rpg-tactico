@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "warrior"
+display_name = "Guerrero"
+description = "Combatiente frontal equilibrado entre fuerza y resistencia."
+allowed_race_ids = Array[String](["human", "dark_elf", "orc", "dwarf"])
+attribute_modifiers = {"STR": 2, "CON": 2}
+growth_attributes = {"STR": 2, "DEX": 1, "CON": 2}
+derived_modifiers = {"max_hp": 10, "physical_defense": 2}
+ability_ids = Array[String](["powerful_strike", "steel_guard", "blade_arc", "armor_breaker"])
+evolution_ids = Array[String](["swordsman", "guardian"])

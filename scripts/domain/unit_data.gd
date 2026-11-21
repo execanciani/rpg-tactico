@@ -8,6 +8,9 @@ enum Team { HEROES, ENEMIES }
 @export var display_name := ""
 @export var team: Team = Team.HEROES
 @export var class_name_text := ""
+@export var race_id := ""
+@export var race_name_text := ""
+@export var profession_id := ""
 @export var level := 1
 @export var xp := 0
 @export var xp_to_next := 100
@@ -21,6 +24,11 @@ enum Team { HEROES, ENEMIES }
 @export var magical_defense := 3
 @export var speed := 5
 @export var move_range := 4
+@export var accuracy := 75
+@export var evasion := 10
+@export var critical_chance := 5
+@export var critical_damage := 150
+@export var effect_resistance := 0
 @export var max_climb := 1
 @export var basic_attack_range := 1
 @export var basic_attack_damage_type: AbilityData.DamageType = AbilityData.DamageType.PHYSICAL
@@ -28,12 +36,13 @@ enum Team { HEROES, ENEMIES }
 @export var elevation := 0
 @export var abilities: Array[AbilityData] = []
 
+var main_attributes: Dictionary = {"STR": 10, "DEX": 10, "CON": 10, "INT": 10, "WIS": 10, "MEN": 10}
+var skill_points := 0
+
 var has_moved := false
 var has_acted := false
 var active_statuses: Array[Dictionary] = []
 var ability_cooldowns: Dictionary = {}
-var equipped_summary := "Sin equipo"
-
 func is_alive() -> bool:
 	return hp > 0
 
@@ -134,6 +143,8 @@ func make_snapshot() -> Dictionary:
 		"display_name": display_name,
 		"team": team,
 		"class": class_name_text,
+		"race_id": race_id,
+		"profession_id": profession_id,
 		"level": level,
 		"xp": xp,
 		"hp": hp,

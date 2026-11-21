@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="RaceData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/race_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+race_id = "elf"
+display_name = "Elfo"
+description = "Linaje ágil de gran precisión y afinidad con las corrientes mágicas."
+base_attributes = {"STR": 8, "DEX": 12, "CON": 8, "INT": 11, "WIS": 12, "MEN": 10}
+racial_modifiers = {"DEX": 2, "WIS": 1, "CON": -1}
+allowed_initial_professions = Array[String](["mage", "archer", "acolyte", "explorer"])

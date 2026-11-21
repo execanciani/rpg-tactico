@@ -11,3 +11,4 @@ mp_cost = 3
 range_cells = 6
 power = 5
 cooldown_turns = 1
+required_profession_ids = Array[String](["archer", "marksman", "hunter"])

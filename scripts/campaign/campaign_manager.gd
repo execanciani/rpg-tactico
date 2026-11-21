@@ -18,8 +18,6 @@ func load_catalog() -> void:
 		if mission != null:
 			missions.append(mission)
 	current_mission_index = clampi(current_mission_index, 0, maxi(0, missions.size() - 1))
-	if profile.hero_progress.is_empty():
-		profile.initialize_default()
 
 func current_mission() -> MissionData:
 	if missions.is_empty():

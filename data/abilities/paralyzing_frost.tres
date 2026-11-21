@@ -14,4 +14,5 @@ damage_type = 1
 ability_type = 2
 area_radius = 1
 cooldown_turns = 3
+required_profession_ids = Array[String](["mage", "elementalist", "frost_sorcerer"])
 status_effect_path = "res://data/status_effects/chilled.tres"

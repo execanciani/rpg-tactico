@@ -4,17 +4,12 @@ extends Node2D
 enum Phase { PLAYER, ENEMY, FINISHED }
 enum SelectionMode { NONE, MOVE, ATTACK, SKILL }
 
-const HERO_ARCHETYPE_PATHS: Array[String] = [
-	"res://data/archetypes/hero_warrior.tres",
-	"res://data/archetypes/hero_mage.tres",
-	"res://data/archetypes/hero_archer.tres",
-]
-
 @onready var grid: IsometricGrid = $IsometricGrid
 @onready var units_layer: Node2D = $Units
 @onready var effects_layer: Node2D = $Effects
 @onready var tactical_camera: TacticalCamera = $Camera2D
 @onready var ui: BattleUI = $Interface/BattleUI
+@onready var character_selection: CharacterSelectionScreen = $Interface/CharacterSelectionScreen
 
 var phase := Phase.PLAYER
 var selection_mode := SelectionMode.NONE
@@ -33,6 +28,7 @@ var mission: MissionData
 var pending_dialogue := ""
 var reward_messages: Array[String] = []
 var rewards_awarded := false
+var progression_open := false
 
 func _ready() -> void:
 	grid.cell_pressed.connect(_on_cell_pressed)
@@ -41,15 +37,70 @@ func _ready() -> void:
 	ui.attack_requested.connect(_on_attack_requested)
 	ui.skill_requested.connect(_on_skill_requested)
 	ui.wait_requested.connect(_on_wait_requested)
-	ui.item_requested.connect(_on_item_requested)
-	ui.item_selected.connect(_on_item_selected)
 	ui.ability_selected.connect(_on_ability_selected)
+	ui.progression_requested.connect(_on_progression_requested)
+	ui.learn_skill_requested.connect(_on_learn_skill_requested)
+	ui.profession_change_requested.connect(_on_profession_change_requested)
+	ui.progression_closed.connect(_on_progression_closed)
 	ui.save_requested.connect(_on_save_requested)
 	ui.load_requested.connect(_on_load_requested)
 	ui.continue_requested.connect(_on_continue_requested)
 	ui.dialogue_finished.connect(_on_dialogue_finished)
+	character_selection.create_requested.connect(_on_roster_create_requested)
+	character_selection.delete_requested.connect(_on_roster_delete_requested)
+	character_selection.formation_toggle_requested.connect(_on_roster_toggle_requested)
+	character_selection.adventure_requested.connect(_on_adventure_requested)
 	campaign.load_catalog()
+	_load_profile_for_selection()
+	ui.visible = false
+	character_selection.configure(campaign.profile)
+
+func _load_profile_for_selection() -> void:
+	var payload := SaveSystem.load_game()
+	if payload.is_empty():
+		campaign.profile.initialize_new()
+		return
+	campaign.current_mission_index = clampi(int(payload.get("mission_index", 0)), 0, maxi(0, campaign.missions.size() - 1))
+	if payload.has("profile"):
+		campaign.profile.restore(payload.get("profile", {}))
+	else:
+		campaign.profile.initialize_default()
+
+func _on_roster_create_requested(character_name: String, race_id: String, profession_id: String) -> void:
+	var validation_error := campaign.profile.validate_character_name(character_name)
+	if not validation_error.is_empty():
+		character_selection.show_creation_error(validation_error)
+		return
+	var character := campaign.profile.create_character_auto(character_name, race_id, profession_id)
+	if character == null:
+		character_selection.show_creation_error("No se pudo crear el personaje con esa raza y profesión.")
+		return
+	_save_roster()
+	character_selection.creation_succeeded()
+
+func _on_roster_delete_requested(character_id: String) -> void:
+	if campaign.profile.delete_character(character_id):
+		_save_roster()
+		character_selection.refresh()
+
+func _on_roster_toggle_requested(character_id: String) -> void:
+	if campaign.profile.toggle_formation_character(character_id):
+		_save_roster()
+	character_selection.refresh()
+
+func _on_adventure_requested() -> void:
+	if campaign.profile.formation_ids.is_empty():
+		return
+	_save_roster()
+	character_selection.visible = false
+	ui.visible = true
 	_start_mission(campaign.current_mission_index)
+
+func _save_roster() -> bool:
+	return SaveSystem.save_game({
+		"mission_index": campaign.current_mission_index,
+		"profile": campaign.profile.make_snapshot(),
+	})
 
 func _unhandled_input(event: InputEvent) -> void:
 	if input_locked or phase != Phase.PLAYER or selected_unit == null:
@@ -62,8 +113,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_skill_requested()
 	elif event.is_action_pressed("action_wait"):
 		_on_wait_requested()
-	elif event.is_action_pressed("action_item"):
-		_on_item_requested()
 	elif event.is_action_pressed("ui_cancel"):
 		_set_selection_mode(SelectionMode.NONE)
 
@@ -76,13 +125,13 @@ func _start_mission(index: int, announce := true, begin_turn := true) -> void:
 	_clear_battlefield()
 	grid.configure(mission)
 	tactical_camera.reset_view()
-	for hero_index in HERO_ARCHETYPE_PATHS.size():
-		var archetype := load(HERO_ARCHETYPE_PATHS[hero_index]) as UnitArchetype
+	for hero_index in mini(campaign.profile.formation_ids.size(), mission.hero_positions.size()):
+		var character_id := campaign.profile.formation_ids[hero_index]
+		var archetype := load(campaign.profile.battle_archetype_path(character_id)) as UnitArchetype
 		if archetype == null or hero_index >= mission.hero_positions.size():
 			continue
-		var hero := archetype.instantiate(archetype.archetype_id, UnitData.Team.HEROES, mission.hero_positions[hero_index])
+		var hero := archetype.instantiate(character_id, UnitData.Team.HEROES, mission.hero_positions[hero_index])
 		campaign.profile.apply_to_hero(hero)
-		hero.xp_to_next = campaign.profile.xp_required(hero.level)
 		_spawn_unit(hero)
 	for enemy_index in mission.enemy_archetype_paths.size():
 		if enemy_index >= mission.enemy_positions.size():
@@ -98,7 +147,10 @@ func _start_mission(index: int, announce := true, begin_turn := true) -> void:
 	reward_messages.clear()
 	input_locked = false
 	ui.hide_result()
-	ui.set_mission(mission.title, campaign.current_mission_index + 1, campaign.missions.size(), campaign.profile.gold)
+	ui.hide_progression()
+	if progression_open:
+		ui.hide_progression()
+	ui.set_mission(mission.title, campaign.current_mission_index + 1, campaign.missions.size())
 	ui.set_objective(mission.objective_text)
 	turn_manager.start(_unit_data(), 1)
 	ui.set_hint(mission.briefing)
@@ -253,35 +305,50 @@ func _on_wait_requested() -> void:
 	ui.show_message("%s espera." % selected_unit.data.display_name, Color("#d7dde0"))
 	_finish_player_action()
 
-func _on_item_requested() -> void:
-	if not _selection_can_act():
+func _on_progression_requested() -> void:
+	if input_locked or phase != Phase.PLAYER:
+		ui.show_message("La progresión se gestiona durante un turno disponible.", Color("#ffcf88"))
 		return
-	var entries := campaign.profile.inventory.list_available_for(selected_unit.data)
-	if entries.is_empty():
-		ui.show_message("No hay objetos utilizables para esta unidad.", Color("#ffcf88"))
-		return
-	ui.show_inventory(entries, selected_unit.data)
+	progression_open = true
+	input_locked = true
+	ui.show_progression(campaign.profile, selected_unit.data.archetype_id if selected_unit != null else "")
 
-func _on_item_selected(item_id: String) -> void:
-	if not _selection_can_act():
-		ui.hide_inventory()
+func _on_learn_skill_requested(character_id: String, ability_id: String) -> void:
+	if not progression_open or phase != Phase.PLAYER:
 		return
-	var item := campaign.profile.inventory.get_item(item_id)
-	if item == null:
+	if not campaign.profile.learn_ability(character_id, ability_id):
+		ui.show_message("No se cumplen los requisitos de aprendizaje.", Color("#ffcf88"))
 		return
-	var success := false
-	if item.type == ItemData.Type.CONSUMABLE:
-		success = campaign.profile.inventory.consume(selected_unit.data, item_id)
-	else:
-		success = campaign.profile.inventory.equip_item(selected_unit.data, item_id)
-	if not success:
-		ui.show_message("El objeto no puede usarse ahora.", Color("#ffcf88"))
+	_sync_character_view(character_id)
+	ui.show_message("Habilidad aprendida.", Color("#9fe0bd"))
+	ui.show_progression(campaign.profile, character_id, "skills")
+
+func _on_profession_change_requested(character_id: String, profession_id: String) -> void:
+	if not progression_open or phase != Phase.PLAYER:
 		return
-	ui.hide_inventory()
-	selected_unit.data.has_acted = true
-	selected_unit.refresh()
-	ui.show_message("%s usa %s." % [selected_unit.data.display_name, item.display_name], Color("#9fe0bd"))
-	_finish_player_action()
+	if not campaign.profile.change_profession(character_id, profession_id):
+		ui.show_message("No se cumplen los requisitos de profesión.", Color("#ffcf88"))
+		return
+	_sync_character_view(character_id)
+	var progress := campaign.profile.character(character_id)
+	var profession := campaign.profile.catalog.profession(progress.profession_id)
+	ui.show_message("%s ahora es %s." % [progress.display_name, profession.display_name], Color("#ffe195"))
+	ui.show_progression(campaign.profile, character_id, "profession")
+
+func _on_progression_closed() -> void:
+	progression_open = false
+	if phase == Phase.PLAYER:
+		input_locked = false
+
+func _sync_character_view(character_id: String) -> void:
+	var view := _unit_by_id(character_id)
+	if view == null:
+		return
+	campaign.profile.apply_to_hero(view.data, true)
+	view.refresh()
+	if selected_unit == view:
+		ui.show_unit(view.data)
+		ui.configure_actions(view.data, true)
 
 func _set_selection_mode(mode: SelectionMode) -> void:
 	selection_mode = mode
@@ -623,7 +690,6 @@ func _on_continue_requested() -> void:
 		_start_mission(campaign.current_mission_index)
 	else:
 		campaign.current_mission_index = 0
-		campaign.profile.initialize_default()
 		_start_mission(0)
 
 func _on_save_requested() -> void:
@@ -741,8 +807,9 @@ func _process_status_for_view(view: TacticalUnit) -> void:
 		view.play_defeat()
 
 func _status_roll_succeeds(actor: UnitData, target: UnitData, ability: AbilityData) -> bool:
-	if ability.status_chance >= 1.0:
+	var effective_chance := clampf(ability.status_chance - float(target.effect_resistance) / 200.0, 0.05, 1.0)
+	if effective_chance >= 1.0:
 		return true
 	var seed_text := "%s:%s:%s:%d" % [actor.unit_id, target.unit_id, ability.id, round_number]
 	var normalized := float(absi(hash(seed_text)) % 10000) / 10000.0
-	return normalized < ability.status_chance
+	return normalized < effective_chance

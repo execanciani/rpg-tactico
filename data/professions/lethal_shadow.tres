@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "lethal_shadow"
+display_name = "Sombra Letal"
+description = "Culminación ofensiva de velocidad y golpes críticos."
+previous_profession_id = "assassin"
+minimum_level = 40
+attribute_modifiers = {"DEX": 9, "STR": 6, "CON": -1}
+growth_attributes = {"DEX": 4, "STR": 3}
+derived_modifiers = {"evasion": 15, "critical_chance": 12, "critical_damage": 30}

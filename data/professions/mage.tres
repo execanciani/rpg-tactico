@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "mage"
+display_name = "Mago"
+description = "Canalizador de energía ofensiva y control elemental."
+allowed_race_ids = Array[String](["human", "elf", "dark_elf"])
+attribute_modifiers = {"INT": 3, "WIS": 2}
+growth_attributes = {"INT": 2, "WIS": 2, "MEN": 1}
+derived_modifiers = {"max_mp": 12, "magical_attack": 3}
+ability_ids = Array[String](["ice_lance", "paralyzing_frost", "arcane_burst", "astral_lance"])
+evolution_ids = Array[String](["elementalist", "summoner"])

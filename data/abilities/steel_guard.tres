@@ -12,4 +12,5 @@ range_cells = 0
 ability_type = 1
 target_type = 2
 cooldown_turns = 3
+required_profession_ids = Array[String](["warrior", "guardian"])
 status_effect_path = "res://data/status_effects/steel_guard.tres"

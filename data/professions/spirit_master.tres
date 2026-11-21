@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "spirit_master"
+display_name = "Maestro de Espíritus"
+description = "Culminación de la rama de invocación, preparada para futuras criaturas."
+previous_profession_id = "summoner"
+minimum_level = 40
+attribute_modifiers = {"WIS": 8, "MEN": 6, "INT": 3}
+growth_attributes = {"WIS": 4, "MEN": 3}
+derived_modifiers = {"max_mp": 35, "magical_defense": 10}

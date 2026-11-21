@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "assassin"
+display_name = "Asesino"
+description = "Especialización ofensiva de velocidad y golpes críticos."
+previous_profession_id = "explorer"
+minimum_level = 20
+attribute_modifiers = {"DEX": 5, "STR": 3, "CON": -1}
+growth_attributes = {"DEX": 3, "STR": 2}
+derived_modifiers = {"critical_chance": 8, "critical_damage": 18}
+evolution_ids = Array[String](["lethal_shadow"])

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "oracle"
+display_name = "Oráculo"
+description = "Especialización espiritual de resistencia y previsión."
+previous_profession_id = "acolyte"
+minimum_level = 20
+attribute_modifiers = {"MEN": 5, "WIS": 3, "INT": 1}
+growth_attributes = {"MEN": 3, "WIS": 2}
+derived_modifiers = {"effect_resistance": 15, "magical_defense": 6}

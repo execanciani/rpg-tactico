@@ -13,3 +13,4 @@ power = 1
 cooldown_turns = 2
 hit_count = 2
 damage_scale = 0.65
+required_profession_ids = Array[String](["archer", "marksman"])

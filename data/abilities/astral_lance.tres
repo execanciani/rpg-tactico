@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"astral_lance"
+display_name = "Lanza astral"
+description = "Proyectil mágico de alto poder y gran alcance."
+mp_cost = 9
+range_cells = 6
+power = 11
+damage_type = 1
+cooldown_turns = 3
+required_level = 8
+sp_cost = 4
+required_profession_ids = Array[String](["mage", "elementalist"])

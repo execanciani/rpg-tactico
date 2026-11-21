@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"piercing_arrow"
+display_name = "Flecha perforante"
+description = "Disparo físico de largo alcance y potencia elevada."
+mp_cost = 5
+range_cells = 7
+power = 7
+cooldown_turns = 2
+required_level = 5
+sp_cost = 3
+required_profession_ids = Array[String](["archer", "marksman", "hunter"])

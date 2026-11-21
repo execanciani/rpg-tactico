@@ -18,6 +18,9 @@ enum TargetType { ENEMY, ALLY, SELF }
 @export_range(0, 10) var cooldown_turns := 0
 @export_range(1, 4) var hit_count := 1
 @export_range(0.1, 2.0, 0.05) var damage_scale := 1.0
+@export_range(1, 80) var required_level := 1
+@export_range(0, 99) var sp_cost := 0
+@export var required_profession_ids: Array[String] = []
 @export_file("*.tres") var status_effect_path := ""
 @export_range(0.0, 1.0) var status_chance := 1.0
 

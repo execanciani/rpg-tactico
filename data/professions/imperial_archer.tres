@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "imperial_archer"
+display_name = "Arquero Imperial"
+description = "Culminación de precisión y alcance de la rama del Tirador."
+previous_profession_id = "marksman"
+minimum_level = 40
+attribute_modifiers = {"DEX": 8, "STR": 4, "CON": 2}
+growth_attributes = {"DEX": 4, "STR": 2}
+derived_modifiers = {"accuracy": 20, "critical_chance": 10, "critical_damage": 15}
+ability_ids = Array[String](["precise_arrow", "double_shot", "piercing_arrow"])

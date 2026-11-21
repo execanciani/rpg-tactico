@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "hunter"
+display_name = "Cazador"
+description = "Arquero móvil centrado en control y persecución."
+previous_profession_id = "archer"
+minimum_level = 20
+attribute_modifiers = {"DEX": 4, "CON": 2, "WIS": 1}
+growth_attributes = {"DEX": 3, "CON": 1, "WIS": 1}
+derived_modifiers = {"move_range": 1, "evasion": 6}
+ability_ids = Array[String](["precise_arrow", "piercing_arrow", "hamstring_shot"])

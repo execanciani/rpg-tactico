@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="RaceData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/race_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+race_id = "dark_elf"
+display_name = "Elfo oscuro"
+description = "Linaje ofensivo que combina destreza y magia intensa a costa de resistencia."
+base_attributes = {"STR": 11, "DEX": 12, "CON": 7, "INT": 12, "WIS": 9, "MEN": 8}
+racial_modifiers = {"STR": 1, "INT": 2, "CON": -1}
+allowed_initial_professions = Array[String](["warrior", "mage", "archer", "explorer"])

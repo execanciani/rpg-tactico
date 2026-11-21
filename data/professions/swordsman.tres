@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "swordsman"
+display_name = "Espadachín"
+description = "Especialización ofensiva de dominio de espada."
+previous_profession_id = "warrior"
+minimum_level = 20
+attribute_modifiers = {"STR": 4, "DEX": 2, "CON": 1}
+growth_attributes = {"STR": 3, "DEX": 2, "CON": 1}
+derived_modifiers = {"physical_attack": 5, "critical_damage": 10}
+ability_ids = Array[String](["powerful_strike", "blade_arc", "armor_breaker"])
+evolution_ids = Array[String](["blade_master"])

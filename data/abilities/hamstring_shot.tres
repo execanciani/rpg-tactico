@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/ability_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"hamstring_shot"
+display_name = "Disparo inmovilizador"
+description = "Flecha táctica que reduce temporalmente el movimiento."
+mp_cost = 6
+range_cells = 5
+power = 3
+ability_type = 2
+cooldown_turns = 3
+required_level = 8
+sp_cost = 4
+required_profession_ids = Array[String](["archer", "hunter"])
+status_effect_path = "res://data/status_effects/chilled.tres"

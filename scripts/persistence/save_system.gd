@@ -2,7 +2,7 @@ class_name SaveSystem
 extends RefCounted
 
 const SAVE_PATH := "user://campaign_save.json"
-const SAVE_VERSION := 4
+const SAVE_VERSION := 6
 
 static func save_game(payload: Dictionary, path := SAVE_PATH) -> bool:
 	var file := FileAccess.open(path, FileAccess.WRITE)
@@ -28,7 +28,10 @@ static func encode_payload(payload: Dictionary) -> String:
 	return JSON.stringify(versioned, "\t")
 
 static func decode_payload(text: String) -> Dictionary:
-	var parsed = JSON.parse_string(text)
+	var parser := JSON.new()
+	if parser.parse(text) != OK:
+		return {}
+	var parsed = parser.data
 	if not parsed is Dictionary:
 		return {}
 	var version := int(parsed.get("version", -1))

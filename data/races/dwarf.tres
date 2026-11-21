@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="RaceData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/race_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+race_id = "dwarf"
+display_name = "Enano"
+description = "Pueblo robusto, experto en equipamiento y tácticas defensivas."
+base_attributes = {"STR": 11, "DEX": 8, "CON": 14, "INT": 8, "WIS": 9, "MEN": 11}
+racial_modifiers = {"CON": 2, "MEN": 1, "DEX": -1}
+allowed_initial_professions = Array[String](["warrior", "explorer"])

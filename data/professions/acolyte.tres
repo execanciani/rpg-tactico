@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ProfessionData" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/domain/profession_data.gd" id="1"]
+[resource]
+script = ExtResource("1")
+profession_id = "acolyte"
+display_name = "Acólito"
+description = "Practicante espiritual orientado a protección y asistencia."
+allowed_race_ids = Array[String](["human", "elf", "orc"])
+attribute_modifiers = {"WIS": 3, "MEN": 2}
+growth_attributes = {"WIS": 2, "MEN": 2, "CON": 1}
+derived_modifiers = {"max_mp": 8, "magical_defense": 3, "effect_resistance": 5}
+evolution_ids = Array[String](["healer", "oracle"])

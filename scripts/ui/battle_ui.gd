@@ -5,9 +5,11 @@ signal move_requested
 signal attack_requested
 signal skill_requested
 signal wait_requested
-signal item_requested
-signal item_selected(item_id: String)
 signal ability_selected(ability_id: StringName)
+signal progression_requested
+signal learn_skill_requested(character_id: String, ability_id: String)
+signal profession_change_requested(character_id: String, profession_id: String)
+signal progression_closed
 signal save_requested
 signal load_requested
 signal continue_requested
@@ -25,18 +27,20 @@ var move_button: Button
 var attack_button: Button
 var skill_button: Button
 var wait_button: Button
-var item_button: Button
 var message_label: Label
 var result_overlay: ColorRect
 var result_title: Label
 var result_detail: Label
 var result_button: Button
-var inventory_overlay: PanelContainer
-var inventory_list: VBoxContainer
-var inventory_title: Label
 var ability_overlay: PanelContainer
 var ability_list: VBoxContainer
 var ability_title: Label
+var progression_overlay: PanelContainer
+var progression_character_tabs: HBoxContainer
+var progression_content: VBoxContainer
+var progression_profile: CampaignProfile
+var progression_character_id := ""
+var progression_tab := "character"
 var dialogue_overlay: ColorRect
 var dialogue_label: Label
 var dialogue_lines: Array[String] = []
@@ -50,8 +54,8 @@ func _ready() -> void:
 	_build_action_panel()
 	_build_message_log()
 	_build_result_overlay()
-	_build_inventory_overlay()
 	_build_ability_overlay()
+	_build_progression_overlay()
 	_build_dialogue_overlay()
 	show_unit(null)
 
@@ -93,6 +97,11 @@ func _build_top_bar() -> void:
 	save_button.custom_minimum_size = Vector2(96, 46)
 	save_button.pressed.connect(func(): save_requested.emit())
 	row.add_child(save_button)
+	var progression_button := Button.new()
+	progression_button.text = "Progreso"
+	progression_button.custom_minimum_size = Vector2(100, 46)
+	progression_button.pressed.connect(func(): progression_requested.emit())
+	row.add_child(progression_button)
 	var load_button := Button.new()
 	load_button.text = "Cargar"
 	load_button.custom_minimum_size = Vector2(96, 46)
@@ -157,14 +166,12 @@ func _build_action_panel() -> void:
 	move_button = _action_button("Mover\n[M]", "Elegir una casilla alcanzable")
 	attack_button = _action_button("Atacar\n[A]", "Ataque básico de la clase")
 	skill_button = _action_button("Habilidad\n[S]", "Usar la primera habilidad disponible")
-	item_button = _action_button("Objetos\n[I]", "Consumir o equipar un objeto")
 	wait_button = _action_button("Esperar\n[W]", "Finalizar la acción")
-	for button in [move_button, attack_button, skill_button, item_button, wait_button]:
+	for button in [move_button, attack_button, skill_button, wait_button]:
 		row.add_child(button)
 	move_button.pressed.connect(func(): move_requested.emit())
 	attack_button.pressed.connect(func(): attack_requested.emit())
 	skill_button.pressed.connect(func(): skill_requested.emit())
-	item_button.pressed.connect(func(): item_requested.emit())
 	wait_button.pressed.connect(func(): wait_requested.emit())
 
 func _build_message_log() -> void:
@@ -212,38 +219,6 @@ func _build_result_overlay() -> void:
 	result_button.add_theme_font_size_override("font_size", 19)
 	result_button.pressed.connect(func(): continue_requested.emit())
 	center.add_child(result_button)
-
-func _build_inventory_overlay() -> void:
-	inventory_overlay = PanelContainer.new()
-	inventory_overlay.set_anchors_preset(Control.PRESET_CENTER)
-	inventory_overlay.offset_left = -285
-	inventory_overlay.offset_top = -230
-	inventory_overlay.offset_right = 285
-	inventory_overlay.offset_bottom = 230
-	inventory_overlay.add_theme_stylebox_override("panel", _panel_style(Color("#101a24f5"), Color("#7aa3b5")))
-	inventory_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	inventory_overlay.visible = false
-	add_child(inventory_overlay)
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 10)
-	inventory_overlay.add_child(column)
-	inventory_title = Label.new()
-	inventory_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	inventory_title.add_theme_font_size_override("font_size", 24)
-	inventory_title.add_theme_color_override("font_color", Color("#ffe195"))
-	column.add_child(inventory_title)
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	column.add_child(scroll)
-	inventory_list = VBoxContainer.new()
-	inventory_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	inventory_list.add_theme_constant_override("separation", 7)
-	scroll.add_child(inventory_list)
-	var close_button := Button.new()
-	close_button.text = "Cerrar"
-	close_button.custom_minimum_size = Vector2(0, 48)
-	close_button.pressed.connect(hide_inventory)
-	column.add_child(close_button)
 
 func _build_ability_overlay() -> void:
 	ability_overlay = PanelContainer.new()
@@ -302,6 +277,53 @@ func _build_dialogue_overlay() -> void:
 	next_button.pressed.connect(_advance_dialogue)
 	column.add_child(next_button)
 
+func _build_progression_overlay() -> void:
+	progression_overlay = PanelContainer.new()
+	progression_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	progression_overlay.offset_left = -500
+	progression_overlay.offset_top = -300
+	progression_overlay.offset_right = 500
+	progression_overlay.offset_bottom = 300
+	progression_overlay.add_theme_stylebox_override("panel", _panel_style(Color("#101822fa"), Color("#d0ad62")))
+	progression_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	progression_overlay.visible = false
+	add_child(progression_overlay)
+	var root_column := VBoxContainer.new()
+	root_column.add_theme_constant_override("separation", 9)
+	progression_overlay.add_child(root_column)
+	var title := Label.new()
+	title.text = "GESTIÓN DE PERSONAJES"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 25)
+	title.add_theme_color_override("font_color", Color("#ffe195"))
+	root_column.add_child(title)
+	progression_character_tabs = HBoxContainer.new()
+	progression_character_tabs.alignment = BoxContainer.ALIGNMENT_CENTER
+	progression_character_tabs.add_theme_constant_override("separation", 8)
+	root_column.add_child(progression_character_tabs)
+	var sections := HBoxContainer.new()
+	sections.alignment = BoxContainer.ALIGNMENT_CENTER
+	sections.add_theme_constant_override("separation", 8)
+	root_column.add_child(sections)
+	for section_data in [["character", "Personaje"], ["profession", "Profesiones"], ["skills", "Habilidades"]]:
+		var section_button := Button.new()
+		section_button.text = section_data[1]
+		section_button.custom_minimum_size = Vector2(155, 42)
+		section_button.pressed.connect(_select_progression_tab.bind(str(section_data[0])))
+		sections.add_child(section_button)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root_column.add_child(scroll)
+	progression_content = VBoxContainer.new()
+	progression_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	progression_content.add_theme_constant_override("separation", 8)
+	scroll.add_child(progression_content)
+	var close_button := Button.new()
+	close_button.text = "Cerrar"
+	close_button.custom_minimum_size = Vector2(0, 48)
+	close_button.pressed.connect(hide_progression)
+	root_column.add_child(close_button)
+
 func _action_button(text_value: String, tooltip: String) -> Button:
 	var button := Button.new()
 	button.text = text_value
@@ -326,8 +348,8 @@ func set_turn(round_number: int, is_player_turn: bool) -> void:
 	turn_label.text = "RONDA %d · %s" % [round_number, "TURNO DEL JUGADOR" if is_player_turn else "TURNO ENEMIGO"]
 	turn_label.add_theme_color_override("font_color", Color("#ffe29a") if is_player_turn else Color("#ff9d96"))
 
-func set_mission(title: String, current: int, total: int, gold := 0) -> void:
-	mission_label.text = "MISIÓN %d/%d · %s · %d oro" % [current, total, title, gold]
+func set_mission(title: String, current: int, total: int) -> void:
+	mission_label.text = "MISIÓN %d/%d · %s" % [current, total, title]
 
 func set_objective(value: String) -> void:
 	objective_label.text = "OBJETIVO · %s" % value
@@ -359,11 +381,12 @@ func show_unit(unit: UnitData) -> void:
 		unit_stats_label.text = "Elegí una unidad azul para actuar."
 		return
 	unit_name_label.text = "%s · Nv. %d %s" % [unit.display_name, unit.level, unit.class_name_text]
-	unit_stats_label.text = "HP %d/%d   MP %d/%d   XP %d/%d\nATQ %d   MAG %d   DEF %d   RES %d\nMOV %d (%d)   VEL %d   ALT %d\nEquipo: %s\nEstados: %s" % [
-		unit.hp, unit.max_hp, unit.mp, unit.max_mp, unit.xp, unit.xp_to_next,
+	unit_stats_label.text = "%s · SP %d · XP %d/%d\nHP %d/%d   MP %d/%d\nATQ %d   MAG %d   DEF %d   RES %d\nMOV %d (%d)   VEL %d   ALT %d\nEstados: %s" % [
+		unit.race_name_text, unit.skill_points, unit.xp, unit.xp_to_next,
+		unit.hp, unit.max_hp, unit.mp, unit.max_mp,
 		unit.physical_attack, unit.magical_attack, unit.effective_physical_defense(), unit.effective_magical_defense(),
 		unit.effective_move_range(), unit.move_range, unit.speed, unit.elevation,
-		unit.equipped_summary, unit.status_summary(),
+		unit.status_summary(),
 	]
 
 func configure_actions(unit: UnitData, enabled: bool) -> void:
@@ -376,7 +399,6 @@ func configure_actions(unit: UnitData, enabled: bool) -> void:
 			if unit.can_spend_mp(ability.mp_cost) and unit.is_ability_ready(ability.id):
 				has_available_ability = true
 	skill_button.disabled = not can_act or not has_available_ability
-	item_button.disabled = not can_act
 	wait_button.disabled = not can_act
 	if unit != null and not unit.abilities.is_empty():
 		skill_button.text = "Habilidades (%d)\n[S]" % unit.abilities.size()
@@ -396,25 +418,6 @@ func show_result(victory: bool, rounds: int, has_next_mission := false, rewards:
 
 func hide_result() -> void:
 	result_overlay.visible = false
-
-func show_inventory(entries: Array[Dictionary], unit: UnitData) -> void:
-	inventory_title.text = "Inventario · %s" % unit.display_name
-	for child in inventory_list.get_children():
-		child.queue_free()
-	for entry in entries:
-		var button := Button.new()
-		button.text = "%s ×%d · %s\n%s" % [str(entry.name), int(entry.quantity), "EQUIPAR" if bool(entry.equippable) else "USAR", str(entry.description)]
-		button.custom_minimum_size = Vector2(0, 62)
-		button.pressed.connect(_emit_item_selected.bind(str(entry.id)))
-		inventory_list.add_child(button)
-	inventory_overlay.visible = true
-	inventory_overlay.move_to_front()
-
-func _emit_item_selected(item_id: String) -> void:
-	item_selected.emit(item_id)
-
-func hide_inventory() -> void:
-	inventory_overlay.visible = false
 
 func show_abilities(unit: UnitData) -> void:
 	ability_title.text = "Habilidades · %s" % unit.display_name
@@ -439,6 +442,119 @@ func _emit_ability_selected(ability_id: StringName) -> void:
 
 func hide_abilities() -> void:
 	ability_overlay.visible = false
+
+func show_progression(profile: CampaignProfile, selected_character_id := "", selected_tab := "") -> void:
+	progression_profile = profile
+	if not selected_tab.is_empty():
+		progression_tab = selected_tab
+	var ids: Array[String] = []
+	ids.assign(profile.characters.keys())
+	ids.sort()
+	if ids.is_empty():
+		return
+	if not selected_character_id.is_empty():
+		progression_character_id = selected_character_id
+	if progression_character_id.is_empty() or not profile.characters.has(progression_character_id):
+		progression_character_id = ids[0]
+	for child in progression_character_tabs.get_children():
+		child.queue_free()
+	for character_id in ids:
+		var progress := profile.character(character_id)
+		var button := Button.new()
+		button.text = "%s · Nv.%d" % [progress.display_name, progress.level]
+		button.disabled = character_id == progression_character_id
+		button.pressed.connect(_select_progression_character.bind(character_id))
+		progression_character_tabs.add_child(button)
+	_rebuild_progression_content()
+	progression_overlay.visible = true
+	progression_overlay.move_to_front()
+
+func _select_progression_character(character_id: String) -> void:
+	show_progression(progression_profile, character_id, progression_tab)
+
+func _select_progression_tab(tab_id: String) -> void:
+	progression_tab = tab_id
+	_rebuild_progression_content()
+
+func _rebuild_progression_content() -> void:
+	for child in progression_content.get_children():
+		child.queue_free()
+	var progress := progression_profile.character(progression_character_id)
+	if progress == null:
+		return
+	match progression_tab:
+		"profession":
+			_build_profession_screen(progress)
+		"skills":
+			_build_skill_screen(progress)
+		_:
+			_build_character_screen(progress)
+
+func _build_character_screen(progress: CharacterProgress) -> void:
+	var race := progression_profile.catalog.race(progress.race_id)
+	var profession := progression_profile.catalog.profession(progress.profession_id)
+	var calculated := StatCalculator.calculate(progress, race, profession)
+	var attributes: Dictionary = calculated.attributes
+	var derived: Dictionary = calculated.derived
+	var label := Label.new()
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_font_size_override("font_size", 18)
+	label.text = "%s · %s · %s · Nivel %d\nXP total: %d · Progreso: %d/%d · SP: %d disponibles / %d gastados\n\nATRIBUTOS\nSTR %d   DEX %d   CON %d   INT %d   WIS %d   MEN %d\n\nESTADÍSTICAS\nHP %d   MP %d   ATQ %d   MAG %d   DEF %d   RES %d\nPrecisión %d   Evasión %d   Crítico %d%% ×%d%%\nVelocidad %d   Movimiento %d   Resistencia a estados %d%%\n\n%s" % [
+		progress.display_name, race.display_name, profession.display_name, progress.level,
+		progress.total_experience, progress.experience_into_level(), progress.experience_to_next_level(), progress.sp_available, progress.sp_spent,
+		int(attributes.STR), int(attributes.DEX), int(attributes.CON), int(attributes.INT), int(attributes.WIS), int(attributes.MEN),
+		int(derived.max_hp), int(derived.max_mp), int(derived.physical_attack), int(derived.magical_attack), int(derived.physical_defense), int(derived.magical_defense),
+		int(derived.accuracy), int(derived.evasion), int(derived.critical_chance), int(derived.critical_damage),
+		int(derived.speed), int(derived.move_range), int(derived.effect_resistance), race.description,
+	]
+	progression_content.add_child(label)
+
+func _build_profession_screen(progress: CharacterProgress) -> void:
+	var current := progression_profile.catalog.profession(progress.profession_id)
+	var heading := Label.new()
+	heading.add_theme_font_size_override("font_size", 20)
+	heading.text = "Profesión actual: %s\n%s\n\nEvoluciones disponibles:" % [current.display_name, current.description]
+	heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	progression_content.add_child(heading)
+	if current.evolution_ids.is_empty():
+		var final_label := Label.new()
+		final_label.text = "No hay nuevas evoluciones configuradas para esta rama."
+		progression_content.add_child(final_label)
+		return
+	for evolution_id in current.evolution_ids:
+		var evolution := progression_profile.catalog.profession(evolution_id)
+		if evolution == null:
+			continue
+		var button := Button.new()
+		button.text = "%s · Nivel %d\n%s\nBonificaciones: %s" % [evolution.display_name, evolution.minimum_level, evolution.description, str(evolution.attribute_modifiers)]
+		button.custom_minimum_size = Vector2(0, 72)
+		button.disabled = not progress.can_change_profession(evolution)
+		button.pressed.connect(_emit_profession_change.bind(progress.character_id, evolution.profession_id))
+		progression_content.add_child(button)
+
+func _build_skill_screen(progress: CharacterProgress) -> void:
+	var heading := Label.new()
+	heading.add_theme_font_size_override("font_size", 19)
+	heading.text = "SP disponibles: %d · Habilidades aprendidas: %d" % [progress.sp_available, progress.learned_ability_ids.size()]
+	progression_content.add_child(heading)
+	for ability in progression_profile.catalog.abilities_for_character(progress):
+		var learned := progress.learned_ability_ids.has(String(ability.id))
+		var button := Button.new()
+		button.text = "%s%s · Nv.%d · %d SP\n%s" % ["✓ " if learned else "", ability.display_name, ability.required_level, ability.sp_cost, ability.description]
+		button.custom_minimum_size = Vector2(0, 62)
+		button.disabled = learned or not progress.can_learn(ability)
+		button.pressed.connect(_emit_learn_skill.bind(progress.character_id, String(ability.id)))
+		progression_content.add_child(button)
+
+func _emit_learn_skill(character_id: String, ability_id: String) -> void:
+	learn_skill_requested.emit(character_id, ability_id)
+
+func _emit_profession_change(character_id: String, profession_id: String) -> void:
+	profession_change_requested.emit(character_id, profession_id)
+
+func hide_progression() -> void:
+	progression_overlay.visible = false
+	progression_closed.emit()
 
 func show_dialogue(lines: Array[String]) -> void:
 	if lines.is_empty():
