@@ -39,3 +39,14 @@ godot --headless --path . --script res://tests/smoke_test.gd
 Si el ejecutable no está en el PATH, sustituir `godot` por su ruta local. Verificar también F5, seleccionar 1–3 personajes, mover unidades, equipar objetos, guardar/cargar y ejecutar las tres misiones.
 
 No se modificó la rama `main`.
+
+## Segunda pasada: turnos, combate y persistencia
+
+Se añadieron nuevas correcciones a la misma rama, sin modificar `main`:
+
+1. **TurnManager.restore():** elimina IDs desconocidos o duplicados de la iniciativa; reincorpora unidades vivas ausentes del snapshot; elimina IDs inválidos del registro de acciones; selecciona una unidad activa válida y evita que una ronda totalmente consumida quede bloqueada.
+2. **CombatRules.can_basic_attack():** rechaza referencias nulas de atacante o defensor sin intentar acceder a sus propiedades.
+3. **SaveSystem.decode_payload():** rechaza versiones no numéricas (cadena, null, objeto) o fraccionarias en lugar de convertirlas implícitamente.
+4. **Pruebas de regresión:** nuevas aserciones para cada caso, incluidas restauraciones de ronda y versiones JSON inválidas.
+
+**Pendiente:** ejecutar el smoke test con Godot 4.7.2 y comprobar visualmente el equipamiento en sus cuatro direcciones. No se modificó la presentación 2D ni se añadió 3D.
