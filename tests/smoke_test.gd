@@ -588,6 +588,11 @@ func _test_save_round_trip() -> void:
 	_expect(sanitized.character_id == "hero_warrior" and sanitized.profession_id == "warrior", "La carga no saneó una profesión incompatible.")
 	_expect(int(sanitized.base_attributes.STR) == 1 and sanitized.learned_ability_ids.is_empty(), "La carga aceptó atributos o habilidades manipulados.")
 	_expect(SaveSystem.decode_payload("{archivo corrupto").is_empty(), "Un archivo corrupto fue aceptado como guardado válido.")
+	for malformed_version in ['{"version": "8"}', '{"version": null}', '{"version": {}}', '{"version": 8.5}']:
+		_expect(
+			SaveSystem.decode_payload(malformed_version).is_empty(),
+			"El guardado aceptó un tipo o número de versión inválido."
+		)
 	var temporary_path := "res://tests/.temporary_save_test.json"
 	var written := SaveSystem.save_game(source, temporary_path)
 	var loaded := SaveSystem.load_game(temporary_path)
