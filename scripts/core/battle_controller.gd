@@ -12,6 +12,7 @@ const MAGE_EFFECT_SCENE := preload("res://scenes/presentation/mage_spell_effect.
 @onready var tactical_camera: TacticalCamera = $Camera2D
 @onready var ui: BattleUI = $Interface/BattleUI
 @onready var character_selection: CharacterSelectionScreen = $Interface/CharacterSelectionScreen
+@onready var inventory_screen: InventoryScreen = $Interface/InventoryScreen
 
 var phase := Phase.PLAYER
 var selection_mode := SelectionMode.NONE
@@ -31,6 +32,7 @@ var pending_dialogue := ""
 var reward_messages: Array[String] = []
 var rewards_awarded := false
 var progression_open := false
+var inventory_from_roster := false
 
 func _ready() -> void:
 	grid.cell_pressed.connect(_on_cell_pressed)
@@ -41,6 +43,7 @@ func _ready() -> void:
 	ui.wait_requested.connect(_on_wait_requested)
 	ui.ability_selected.connect(_on_ability_selected)
 	ui.progression_requested.connect(_on_progression_requested)
+	ui.inventory_requested.connect(_on_battle_inventory_requested)
 	ui.learn_skill_requested.connect(_on_learn_skill_requested)
 	ui.profession_change_requested.connect(_on_profession_change_requested)
 	ui.equip_requested.connect(_on_equip_requested)
@@ -54,6 +57,15 @@ func _ready() -> void:
 	character_selection.delete_requested.connect(_on_roster_delete_requested)
 	character_selection.formation_toggle_requested.connect(_on_roster_toggle_requested)
 	character_selection.adventure_requested.connect(_on_adventure_requested)
+	character_selection.inventory_requested.connect(_on_roster_inventory_requested)
+	inventory_screen.closed.connect(_on_inventory_closed)
+	inventory_screen.equip_requested.connect(_on_inventory_equip_requested)
+	inventory_screen.unequip_requested.connect(_on_inventory_unequip_requested)
+	inventory_screen.use_requested.connect(_on_inventory_use_requested)
+	inventory_screen.discard_requested.connect(_on_inventory_discard_requested)
+	inventory_screen.move_requested.connect(_on_inventory_move_requested)
+	inventory_screen.split_requested.connect(_on_inventory_split_requested)
+	inventory_screen.sort_requested.connect(_on_inventory_sort_requested)
 	campaign.load_catalog()
 	_load_profile_for_selection()
 	ui.visible = false
@@ -99,6 +111,83 @@ func _on_adventure_requested() -> void:
 	character_selection.visible = false
 	ui.visible = true
 	_start_mission(campaign.current_mission_index)
+
+func _on_roster_inventory_requested(character_id: String) -> void:
+	if campaign.profile.characters.is_empty():
+		return
+	inventory_from_roster = true
+	inventory_screen.open(campaign.profile, character_id, true)
+
+func _on_battle_inventory_requested() -> void:
+	if input_locked or phase != Phase.PLAYER:
+		ui.show_message("El inventario solo se abre durante un turno disponible.", Color("#ffcf88"))
+		return
+	inventory_from_roster = false
+	input_locked = true
+	inventory_screen.open(campaign.profile, selected_unit.data.unit_id if selected_unit != null else "", false)
+
+func _on_inventory_closed() -> void:
+	if inventory_from_roster:
+		character_selection.refresh()
+	elif phase == Phase.PLAYER:
+		input_locked = false
+
+func _on_inventory_equip_requested(character_id: String, item_id: String) -> void:
+	if campaign.profile.equip_item(character_id, item_id):
+		_after_inventory_change(character_id, "Objeto equipado.", true)
+	else:
+		inventory_screen.show_status("No se puede equipar: revisa requisitos o espacio disponible.", false)
+
+func _on_inventory_unequip_requested(character_id: String, slot_id: String) -> void:
+	if campaign.profile.unequip_item(character_id, slot_id):
+		_after_inventory_change(character_id, "Objeto devuelto al inventario.", true)
+	else:
+		inventory_screen.show_status("No hay espacio para desequipar ese objeto.", false)
+
+func _on_inventory_use_requested(character_id: String, slot_index: int) -> void:
+	var result := campaign.profile.use_consumable(character_id, slot_index, inventory_from_roster)
+	if bool(result.get("success", false)):
+		_after_inventory_change(character_id, str(result.get("message", "Consumible utilizado.")), true)
+	else:
+		inventory_screen.show_status(str(result.get("message", "No se pudo usar el objeto.")), false)
+
+func _on_inventory_discard_requested(character_id: String, slot_index: int, quantity: int) -> void:
+	if campaign.profile.discard_inventory_item(character_id, slot_index, quantity):
+		_after_inventory_change(character_id, "Objeto descartado.", true)
+	else:
+		inventory_screen.show_status("No se pudo descartar el objeto.", false)
+
+func _on_inventory_move_requested(character_id: String, from_index: int, to_index: int) -> void:
+	if campaign.profile.move_inventory_slot(character_id, from_index, to_index):
+		_after_inventory_change(character_id, "Objeto movido.", true)
+	else:
+		inventory_screen.show_status("Movimiento invalido.", false)
+
+func _on_inventory_split_requested(character_id: String, slot_index: int, quantity: int) -> void:
+	if campaign.profile.split_inventory_stack(character_id, slot_index, quantity):
+		_after_inventory_change(character_id, "Pila separada.", true)
+	else:
+		inventory_screen.show_status("No se pudo separar la pila; revisa el espacio libre.", false)
+
+func _on_inventory_sort_requested(character_id: String) -> void:
+	if campaign.profile.sort_inventory(character_id):
+		_after_inventory_change(character_id, "Inventario ordenado por categoria.", true)
+
+func _after_inventory_change(character_id: String, message: String, success: bool) -> void:
+	var view := _unit_by_id(character_id)
+	if view != null:
+		campaign.profile.apply_to_hero(view.data, true)
+		view.refresh()
+		if selected_unit == view:
+			ui.show_unit(view.data)
+	_save_inventory_state()
+	inventory_screen.show_status(message, success)
+
+func _save_inventory_state() -> void:
+	if inventory_from_roster or unit_views.is_empty():
+		_save_roster()
+	else:
+		_save_equipment_state()
 
 func _save_roster() -> bool:
 	return SaveSystem.save_game({
@@ -378,6 +467,7 @@ func _refresh_character_equipment(character_id: String) -> void:
 	ui.show_progression(campaign.profile, character_id, "equipment")
 
 func _save_equipment_state() -> void:
+	_sync_profile_vitals()
 	SaveSystem.save_game({
 		"mission_index": campaign.current_mission_index,
 		"round": round_number,
@@ -750,6 +840,7 @@ func _on_save_requested() -> void:
 	if phase != Phase.PLAYER or input_locked:
 		ui.show_message("Sólo se puede guardar durante tu turno.", Color("#ffcf88"))
 		return
+	_sync_profile_vitals()
 	var success := SaveSystem.save_game({
 		"mission_index": campaign.current_mission_index,
 		"round": round_number,
@@ -800,6 +891,10 @@ func _on_load_requested() -> void:
 		if phase == Phase.PLAYER:
 			_select_unit(active)
 	ui.show_message("Partida cargada.", Color("#9fe0bd"))
+
+func _sync_profile_vitals() -> void:
+	for view in hero_views:
+		campaign.profile.update_vitals_from_unit(view.data)
 
 func _occupied_cells() -> Dictionary:
 	var occupied := {}

@@ -45,6 +45,10 @@ const EQUIPMENT_PATHS: Array[String] = [
 	"res://data/equipment/dark_hood.tres", "res://data/equipment/explorer_boots.tres",
 	"res://data/equipment/iron_helmet.tres", "res://data/equipment/iron_armor.tres",
 	"res://data/equipment/iron_boots.tres", "res://data/equipment/iron_shield.tres",
+	"res://data/equipment/leather_gloves.tres",
+	"res://data/items/small_health_potion.tres", "res://data/items/small_mana_potion.tres",
+	"res://data/items/iron_ore.tres", "res://data/items/wood.tres",
+	"res://data/items/leather.tres", "res://data/items/magic_crystal.tres",
 ]
 
 var races: Dictionary = {}
@@ -94,6 +98,16 @@ func appearance(appearance_id: String) -> AppearanceData:
 
 func equipment_item(item_id: String) -> EquipmentItemData:
 	return equipment.get(item_id) as EquipmentItemData
+
+func item(item_id: String) -> EquipmentItemData:
+	return equipment_item(item_id)
+
+func category_map() -> Dictionary:
+	var result := {}
+	for item_id in equipment:
+		var definition := equipment[item_id] as EquipmentItemData
+		result[item_id] = definition.category
+	return result
 
 func abilities_for_character(character: CharacterProgress) -> Array[AbilityData]:
 	var result: Array[AbilityData] = []

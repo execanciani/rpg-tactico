@@ -5,6 +5,7 @@ signal create_requested(character_name: String, race_id: String, profession_id: 
 signal delete_requested(character_id: String)
 signal formation_toggle_requested(character_id: String)
 signal adventure_requested
+signal inventory_requested(character_id: String)
 
 const SLOT_SCENE := preload("res://scenes/ui/character_slot_card.tscn")
 const RACE_SCENE := preload("res://scenes/ui/race_selection_panel.tscn")
@@ -118,14 +119,26 @@ func _build_main_content() -> void:
 	slots_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	slots_row.add_theme_constant_override("separation", 16)
 	slots_scroll.add_child(slots_row)
+	var footer := HBoxContainer.new()
+	footer.alignment = BoxContainer.ALIGNMENT_CENTER
+	footer.add_theme_constant_override("separation", 12)
+	column.add_child(footer)
+	var inventory_button := Button.new()
+	inventory_button.text = "INVENTARIO"
+	inventory_button.custom_minimum_size = Vector2(250, 68)
+	inventory_button.add_theme_font_size_override("font_size", 20)
+	inventory_button.pressed.connect(func():
+		var selected_id := profile.formation_ids[0] if profile != null and not profile.formation_ids.is_empty() else ""
+		inventory_requested.emit(selected_id)
+	)
+	footer.add_child(inventory_button)
 	start_button = Button.new()
 	start_button.text = "COMENZAR AVENTURA"
-	start_button.custom_minimum_size = Vector2(520, 68)
-	start_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	start_button.custom_minimum_size = Vector2(420, 68)
 	start_button.add_theme_font_size_override("font_size", 22)
 	_apply_primary_button_style(start_button)
 	start_button.pressed.connect(func(): adventure_requested.emit())
-	column.add_child(start_button)
+	footer.add_child(start_button)
 
 func _build_creation_overlay() -> void:
 	creation_overlay = ColorRect.new()

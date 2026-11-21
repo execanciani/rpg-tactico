@@ -70,8 +70,8 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 ### Equipamiento visual por capas
 
 - `tools/prepare_equipment_assets.py` extrae cinco cuerpos base limpios de la composicion original y genera iconos y capas provisionales transparentes para vista previa y combate.
-- Cada personaje conserva un `appearance_id` independiente de su profesion, inventario con cantidades y ocho slots persistidos mediante IDs estables.
-- Los 26 objetos iniciales son Resources externos con requisitos, bonificaciones, icono y variantes visuales por modelo corporal.
+- Cada personaje conserva un `appearance_id` independiente de su profesion, inventario de 40 espacios y nueve slots persistidos mediante IDs estables.
+- Los 33 objetos del catalogo son Resources externos con requisitos, bonificaciones, icono y variantes visuales por modelo corporal.
 - La pestaña **Equipo** permite equipar y desequipar con mouse o tactil, recalcula las estadisticas desde sus fuentes y guarda el cambio automaticamente.
 - Las capas de casco, torso, manos, pies, arma y escudo se muestran sobre los sprites de combate; armas, escudos y capas cambian su orden segun la orientacion.
 - Las clases que aun no tienen una hoja modular usan capas estaticas coherentes. El guerrero ya dispone de recursos direccionales y anclajes por estado y fotograma.
@@ -83,6 +83,15 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 - La hoja aporta tres cuadros para idle, caminar, ataque y derrota, y dos para daño; las habilidades fisicas reutilizan el ataque porque no hay una secuencia separada fiable.
 - Casco (+3 DEF), armadura (+10 DEF), botas (+2 DEF), espada (+8 ATQ) y escudo (+5 DEF) usan texturas direccionales independientes.
 - Los objetos siguen cabeza, torso, pies y manos mediante offsets configurados en sus Resources. La vista previa permite comprobar el resultado sin entrar al combate.
+
+### Inventario de fase 4
+
+- `InventoryScreen` es una pantalla independiente construida con controles reales: selector de personaje, retrato, estadisticas, vista previa, nueve ranuras de equipo, 40 espacios desplazables, filtros y descripcion contextual.
+- Las definiciones globales y las instancias guardadas estan separadas. Cada instancia conserva ranura, cantidad y estado propio; equipar nunca modifica el Resource compartido.
+- Se pueden agregar, retirar, mover, intercambiar, separar, ordenar y descartar pilas. El descarte exige confirmacion y un inventario lleno devuelve el sobrante sin perderlo.
+- Las pociones de vida y mana restauran 50 HP y 30 MP fuera del combate, respetan sus maximos y se guardan inmediatamente. En combate el boton Usar queda bloqueado hasta integrarlo con las acciones de turno.
+- La referencia de 1536x1024 se conserva en `assets/ui/inventory`. Las pociones y el cristal se extraen de ella; mineral, madera y cuero son reemplazos pixel art transparentes reproducibles mediante `tools/extract_inventory_icons.py`.
+- Una partida nueva recibe espada de hierro, armadura de cuero, casco de hierro, botas de cuero, cinco pociones de vida y tres de mana una sola vez por personaje creado.
 
 ### Progresión
 
@@ -112,7 +121,7 @@ Cada misión tiene briefing, diálogo introductorio, diálogo de victoria y reco
 
 ### Guardado
 
-Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 7 conserva y migra partidas desde la versión 3:
+Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El formato versión 8 conserva y migra partidas desde la versión 3:
 
 - Misión y ronda actual.
 - HP, MP, posiciones, estados alterados y enfriamientos.
@@ -121,7 +130,7 @@ Los botones **Guardar** y **Cargar** usan `user://campaign_save.json`. El format
 - Nivel, experiencia total, SP disponible/gastado y habilidades aprendidas.
 - Atributos base permanentes; las estadísticas derivadas se recalculan al cargar.
 - Personajes creados, espacios ocupados, formación seleccionada y misiones completadas.
-- Apariencia corporal, inventario, cantidades y equipamiento por IDs estables.
+- Apariencia corporal, distribución de los 40 espacios, cantidades, HP/MP persistentes y equipamiento por IDs estables.
 
 Sólo se guarda durante el turno del jugador para evitar estados intermedios de animaciones o IA.
 
@@ -132,7 +141,7 @@ Sólo se guarda durante el turno del jugador para evitar estados intermedios de 
 - `data/races`: cinco razas y sus profesiones iniciales permitidas.
 - `data/professions`: árbol profesional definido completamente mediante datos.
 - `data/status_effects`: escarcha, quemadura y mejoras defensivas.
-- `data/equipment` y `data/appearances`: objetos equipables y modelos corporales externos.
+- `data/equipment`, `data/items` y `data/appearances`: equipo, consumibles, materiales y modelos corporales externos.
 - `data/missions`: mapa, objetivo, diálogo y recompensas.
 - `scripts/domain`: recursos y estado permanente o temporal de personajes y unidades.
 - `scripts/core`: reglas, comandos, controlador y simulador determinista.

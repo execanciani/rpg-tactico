@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/magic_crystal.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+item_id = "magic_crystal"
+display_name = "Cristal magico"
+description = "Cristal que almacena una pequena cantidad de energia arcana."
+slot = 9
+category = "material"
+item_type = 2
+base_price = 25
+weight = 0.3
+stackable = true
+max_stack = 50
+icon = ExtResource("2")

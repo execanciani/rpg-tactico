@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/small_health_potion.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+item_id = "small_health_potion"
+display_name = "Pocion de vida pequena"
+description = "Restaura 50 HP fuera del combate."
+slot = 9
+category = "consumable"
+item_type = 1
+base_price = 30
+weight = 0.2
+stackable = true
+max_stack = 20
+consumable_effects = {"heal_hp": 50}
+icon = ExtResource("2")

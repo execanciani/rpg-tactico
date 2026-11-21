@@ -14,6 +14,7 @@ func _run() -> void:
 	_test_mage_visual_assets()
 	_test_grass_terrain_assets()
 	_test_equipment_system()
+	_test_inventory_phase_four()
 	_test_height_and_line_of_sight()
 	_test_status_effects()
 	_test_turn_order()
@@ -142,7 +143,7 @@ func _test_equipment_system() -> void:
 	profile.initialize_new()
 	var character := profile.create_character("equipment_test", "Equipo", "human", "warrior")
 	_expect(character != null and character.appearance_id == "warrior", "El personaje no conserva una apariencia independiente de su profesion futura.")
-	_expect(profile.catalog.equipment.size() == 26 and profile.catalog.appearances.size() == 5, "El catalogo de equipamiento o apariencias esta incompleto.")
+	_expect(profile.catalog.equipment.size() == 33 and profile.catalog.appearances.size() == 5, "El catalogo de objetos o apariencias esta incompleto.")
 	for body_id in ["warrior", "mage", "archer", "acolyte", "explorer"]:
 		var base := load("res://assets/characters/base/extracted/base_%s.png" % body_id) as Texture2D
 		_expect(base != null and base.get_size() == Vector2(256, 384), "La base extraida de %s falta o fue deformada." % body_id)
@@ -201,6 +202,76 @@ func _test_equipment_system() -> void:
 	_expect(restored_character.item_quantity("iron_sword") == 0, "La carga duplico un objeto equipado en el inventario.")
 	_expect(restored.unequip_item(character.character_id, "main_hand"), "No se pudo desequipar la espada restaurada.")
 	_expect(restored_character.item_quantity("iron_sword") == 1 and not restored_character.equipped_items.has("main_hand"), "Desequipar no devolvio el objeto al inventario.")
+
+func _test_inventory_phase_four() -> void:
+	var reference := load("res://assets/ui/inventory/inventory_reference.png") as Texture2D
+	_expect(reference != null and reference.get_size() == Vector2(1536, 1024), "La referencia de inventario no conserva sus dimensiones reales.")
+	for icon_id in ["small_health_potion", "small_mana_potion", "iron_ore", "wood", "leather", "magic_crystal"]:
+		var icon := load("res://assets/items/icons/%s.png" % icon_id) as Texture2D
+		_expect(icon != null and icon.get_size() == Vector2(64, 64), "El icono limpio %s falta o fue deformado." % icon_id)
+		if icon != null:
+			_expect(icon.get_image().get_pixel(63, 63).a < 0.05, "El icono %s conserva fondo o contador en la esquina." % icon_id)
+	var profile := CampaignProfile.new()
+	profile.initialize_new()
+	var progress := profile.create_character("inventory_test", "Mochila", "human", "warrior")
+	_expect(progress != null and progress.inventory_slots.size() == 40, "El inventario no creo exactamente 40 espacios.")
+	_expect(progress.item_quantity("iron_sword") == 1 and progress.item_quantity("leather_armor") == 1, "Falta el equipo inicial de una partida nueva.")
+	_expect(progress.item_quantity("iron_helmet") == 1 and progress.item_quantity("leather_boots") == 1, "Faltan casco o botas iniciales.")
+	_expect(progress.item_quantity("small_health_potion") == 5 and progress.item_quantity("small_mana_potion") == 3, "Las pociones iniciales tienen cantidades incorrectas.")
+	var expected_definitions := {
+		"iron_sword": ["physical_attack", 8], "wooden_bow": ["physical_attack", 6],
+		"apprentice_staff": ["magical_attack", 8], "iron_daggers": ["physical_attack", 5],
+		"leather_armor": ["physical_defense", 5], "iron_armor": ["physical_defense", 10],
+		"arcane_robe": ["magical_defense", 7], "iron_helmet": ["physical_defense", 3],
+		"leather_gloves": ["physical_defense", 1], "leather_boots": ["physical_defense", 2],
+		"wooden_shield": ["physical_defense", 4],
+	}
+	for item_id in expected_definitions:
+		var definition := profile.catalog.item(item_id)
+		var expected: Array = expected_definitions[item_id]
+		_expect(definition != null and int(definition.derived_bonuses.get(expected[0], 0)) == int(expected[1]), "La definicion basica %s no coincide con fase 4." % item_id)
+	for item_id in ["small_health_potion", "small_mana_potion", "iron_ore", "wood", "leather", "magic_crystal"]:
+		var definition := profile.catalog.item(item_id)
+		_expect(definition != null and definition.stackable and definition.max_stack > 1, "El objeto apilable %s no tiene una definicion valida." % item_id)
+	var health_slot := -1
+	for slot_index in CharacterProgress.INVENTORY_CAPACITY:
+		if str(progress.inventory_slot(slot_index).get("item_id", "")) == "small_health_potion":
+			health_slot = slot_index
+			break
+	var occupied_before := progress.occupied_slot_count()
+	_expect(health_slot >= 0 and profile.split_inventory_stack(progress.character_id, health_slot, 2), "No se pudo separar una pila de pociones.")
+	_expect(progress.item_quantity("small_health_potion") == 5 and progress.occupied_slot_count() == occupied_before + 1, "Separar una pila duplico o perdio objetos.")
+	var split_slot := -1
+	for slot_index in CharacterProgress.INVENTORY_CAPACITY:
+		var slot := progress.inventory_slot(slot_index)
+		if slot_index != health_slot and str(slot.get("item_id", "")) == "small_health_potion":
+			split_slot = slot_index
+			break
+	var move_target := progress.first_empty_slot()
+	_expect(split_slot >= 0 and move_target >= 0 and profile.move_inventory_slot(progress.character_id, split_slot, move_target), "No se pudo mover una pila a otro espacio.")
+	_expect(progress.item_quantity("small_health_potion") == 5, "Mover objetos altero la cantidad total.")
+	profile.ensure_character_vitals(progress)
+	var maximums: Dictionary = profile.calculated_stats(progress).derived
+	progress.current_hp = int(maximums.max_hp) - 60
+	var before_potions := progress.item_quantity("small_health_potion")
+	var use_result := profile.use_consumable(progress.character_id, health_slot, true)
+	_expect(bool(use_result.get("success", false)) and progress.current_hp == int(maximums.max_hp) - 10, "La pocion de vida no restauro exactamente 50 HP sin superar el maximo.")
+	_expect(progress.item_quantity("small_health_potion") == before_potions - 1, "Usar una pocion no redujo su pila exactamente una vez.")
+	progress.current_hp = int(maximums.max_hp)
+	before_potions = progress.item_quantity("small_health_potion")
+	_expect(not bool(profile.use_consumable(progress.character_id, health_slot, true).get("success", false)) and progress.item_quantity("small_health_potion") == before_potions, "Una pocion inutil fue consumida con HP maximo.")
+	_expect(not bool(profile.use_consumable(progress.character_id, health_slot, false).get("success", false)), "Se permitio usar un consumible fuera de las reglas de turno durante combate.")
+	var snapshot := profile.make_snapshot()
+	var restored := CampaignProfile.new()
+	restored.restore(snapshot)
+	var restored_progress := restored.character(progress.character_id)
+	_expect(restored_progress.inventory_slots == progress.inventory_slots and restored_progress.current_hp == progress.current_hp, "El guardado no conservo distribucion, cantidades o vitales del inventario.")
+	var full := CharacterProgress.new()
+	full.setup("full", "Lleno", profile.catalog.race("human"), "warrior")
+	_expect(full.add_item("iron_sword", 40) == 0 and full.occupied_slot_count() == 40, "No se pudo preparar un inventario lleno para la prueba.")
+	var total_before := full.item_quantity("iron_sword")
+	_expect(full.add_item("leather_armor", 1) == 1 and full.item_quantity("iron_sword") == total_before, "El inventario lleno perdio objetos o acepto una ranura inexistente.")
+	_expect(not full.discard_from_slot(0, 2), "El descarte permitio una cantidad mayor a la disponible.")
 
 func _test_height_and_line_of_sight() -> void:
 	var heights := {Vector2i(1, 0): 2, Vector2i(0, 1): 1}
@@ -506,6 +577,14 @@ func _test_main_scene() -> void:
 	var created: CharacterProgress = scene.campaign.profile.create_character_auto("Aria", "human", "mage")
 	scene.character_selection.refresh()
 	_expect(created != null and not scene.character_selection.start_button.disabled, "Un personaje creado no ocupó el espacio ni habilitó la aventura.")
+	var inventory_screen := scene.get_node_or_null("Interface/InventoryScreen") as InventoryScreen
+	_expect(inventory_screen != null, "La escena principal no contiene la pantalla independiente de inventario.")
+	if inventory_screen != null:
+		scene._on_roster_inventory_requested(created.character_id)
+		await process_frame
+		_expect(inventory_screen.visible and inventory_screen.inventory_grid.get_child_count() == 40, "La interfaz no mostró las 40 ranuras reales.")
+		_expect(inventory_screen.character_id == created.character_id and inventory_screen.consumables_allowed, "El inventario fuera de combate no seleccionó al personaje o bloqueó consumibles.")
+		inventory_screen._close()
 	scene.character_selection._request_delete(created.character_id)
 	_expect(scene.character_selection.delete_dialog.visible, "Eliminar no mostró una confirmación clara.")
 	scene.character_selection.delete_dialog.hide()

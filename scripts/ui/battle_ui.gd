@@ -7,6 +7,7 @@ signal skill_requested
 signal wait_requested
 signal ability_selected(ability_id: StringName)
 signal progression_requested
+signal inventory_requested
 signal learn_skill_requested(character_id: String, ability_id: String)
 signal profession_change_requested(character_id: String, profession_id: String)
 signal equip_requested(character_id: String, item_id: String)
@@ -104,6 +105,11 @@ func _build_top_bar() -> void:
 	progression_button.custom_minimum_size = Vector2(100, 46)
 	progression_button.pressed.connect(func(): progression_requested.emit())
 	row.add_child(progression_button)
+	var inventory_button := Button.new()
+	inventory_button.text = "Inventario"
+	inventory_button.custom_minimum_size = Vector2(108, 46)
+	inventory_button.pressed.connect(func(): inventory_requested.emit())
+	row.add_child(inventory_button)
 	var load_button := Button.new()
 	load_button.text = "Cargar"
 	load_button.custom_minimum_size = Vector2(96, 46)
@@ -568,7 +574,7 @@ func _build_equipment_screen(progress: CharacterProgress) -> void:
 			continue
 		var item_button := Button.new()
 		item_button.icon = item.icon
-		item_button.icon_max_width = 36
+		item_button.expand_icon = true
 		item_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		item_button.text = "%s ×%d · %s\n%s" % [item.display_name, progress.item_quantity(item_id), slot_names[item.slot_key()], str(item.derived_bonuses)]
 		item_button.tooltip_text = item.description

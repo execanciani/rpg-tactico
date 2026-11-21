@@ -6,12 +6,14 @@
 [resource]
 script = ExtResource("1")
 item_id = "iron_daggers"
-display_name = "Dagas de hierro"
-description = "Par de hojas cortas para ataques rapidos."
+display_name = "Daga de hierro"
+description = "Hoja corta de hierro para ataques rapidos."
 slot = 6
 category = "daggers"
 allowed_profession_ids = Array[String](["explorer"])
-derived_bonuses = {"physical_attack": 3, "critical_chance": 3}
+base_price = 75
+weight = 1.0
+derived_bonuses = {"physical_attack": 5}
 icon = ExtResource("2")
 body_model_id = "explorer"
 preview_visual = ExtResource("3")

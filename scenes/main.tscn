@@ -1,10 +1,11 @@
-[gd_scene format=3 uid="uid://eadf13p2q0g2"]
+[gd_scene load_steps=7 format=3 uid="uid://eadf13p2q0g2"]
 
 [ext_resource type="Script" uid="uid://dus5uybjgm4a" path="res://scripts/core/battle_controller.gd" id="1_controller"]
 [ext_resource type="Script" uid="uid://b4ywyyyvmg0ov" path="res://scripts/grid/isometric_grid.gd" id="2_grid"]
 [ext_resource type="Script" uid="uid://cpyppy6xj2wkl" path="res://scripts/ui/battle_ui.gd" id="3_ui"]
 [ext_resource type="Script" uid="uid://dmpg2v0tppkna" path="res://scripts/presentation/tactical_camera.gd" id="4_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/character_selection_screen.tscn" id="5_selection"]
+[ext_resource type="PackedScene" path="res://scenes/ui/inventory_screen.tscn" id="6_inventory"]
 
 [node name="Battle" type="Node2D" unique_id=1073640049]
 script = ExtResource("1_controller")
@@ -39,3 +40,5 @@ grow_vertical = 2
 script = ExtResource("3_ui")
 
 [node name="CharacterSelectionScreen" parent="Interface" unique_id=2077978010 instance=ExtResource("5_selection")]
+
+[node name="InventoryScreen" parent="Interface" instance=ExtResource("6_inventory")]

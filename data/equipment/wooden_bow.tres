@@ -6,12 +6,14 @@
 [resource]
 script = ExtResource("1")
 item_id = "wooden_bow"
-display_name = "Arco de madera"
-description = "Arco corto construido con madera flexible."
+display_name = "Arco corto"
+description = "Arco corto de madera flexible, ligero y confiable."
 slot = 6
 category = "bow"
 allowed_profession_ids = Array[String](["archer"])
-derived_bonuses = {"physical_attack": 3, "accuracy": 4}
+base_price = 90
+weight = 2.0
+derived_bonuses = {"physical_attack": 6}
 icon = ExtResource("2")
 body_model_id = "archer"
 preview_visual = ExtResource("3")

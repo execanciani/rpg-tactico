@@ -5,11 +5,19 @@ const MAX_CHARACTERS := 3
 const MIN_NAME_LENGTH := 3
 const MAX_NAME_LENGTH := 16
 const STARTER_ITEMS := {
-	"warrior": ["iron_sword", "iron_shield", "iron_helmet", "iron_armor", "iron_boots"],
+	"warrior": ["iron_shield", "iron_armor", "iron_boots"],
 	"mage": ["apprentice_staff", "arcane_robe", "cloth_hood", "cloth_gloves", "apprentice_sandals"],
 	"archer": ["wooden_bow", "leather_vest", "archer_gloves", "light_boots"],
 	"acolyte": ["ceremonial_staff", "healer_robe", "white_hood", "cloth_boots"],
 	"explorer": ["iron_daggers", "light_armor", "dark_hood", "explorer_boots"],
+}
+const COMMON_STARTER_ITEMS := {
+	"iron_sword": 1,
+	"leather_armor": 1,
+	"iron_helmet": 1,
+	"leather_boots": 1,
+	"small_health_potion": 5,
+	"small_mana_potion": 3,
 }
 
 var characters: Dictionary = {}
@@ -187,8 +195,9 @@ func apply_to_hero(unit: UnitData, preserve_vitals := false) -> void:
 	unit.speed = int(derived.speed)
 	unit.move_range = int(derived.move_range)
 	unit.effect_resistance = int(derived.effect_resistance)
-	unit.hp = unit.max_hp
-	unit.mp = unit.max_mp
+	ensure_character_vitals(progress)
+	unit.hp = clampi(progress.current_hp, 0, unit.max_hp)
+	unit.mp = clampi(progress.current_mp, 0, unit.max_mp)
 	unit.abilities.clear()
 	for ability_id in progress.learned_ability_ids:
 		var learned := catalog.ability(ability_id)
@@ -215,6 +224,85 @@ func equip_item(character_id: String, item_id: String) -> bool:
 func unequip_item(character_id: String, slot_id: String) -> bool:
 	var progress := character(character_id)
 	return progress != null and progress.unequip(slot_id)
+
+func add_item(character_id: String, item_id: String, quantity := 1) -> int:
+	var progress := character(character_id)
+	var definition := catalog.item(item_id)
+	if progress == null or definition == null or quantity <= 0:
+		return maxi(0, quantity)
+	return progress.add_item(item_id, quantity, definition.stackable, definition.stack_limit())
+
+func move_inventory_slot(character_id: String, from_index: int, to_index: int) -> bool:
+	var progress := character(character_id)
+	return progress != null and progress.move_inventory_slot(from_index, to_index)
+
+func split_inventory_stack(character_id: String, slot_index: int, quantity: int, target_index := -1) -> bool:
+	var progress := character(character_id)
+	if progress == null:
+		return false
+	var slot := progress.inventory_slot(slot_index)
+	var definition := catalog.item(str(slot.get("item_id", "")))
+	return definition != null and definition.stackable and progress.split_inventory_stack(slot_index, quantity, target_index)
+
+func discard_inventory_item(character_id: String, slot_index: int, quantity := 1) -> bool:
+	var progress := character(character_id)
+	return progress != null and progress.discard_from_slot(slot_index, quantity)
+
+func sort_inventory(character_id: String) -> bool:
+	var progress := character(character_id)
+	if progress == null:
+		return false
+	progress.sort_inventory(catalog.category_map())
+	return true
+
+func use_consumable(character_id: String, slot_index: int, outside_combat := true) -> Dictionary:
+	var progress := character(character_id)
+	if progress == null:
+		return {"success": false, "message": "Personaje invalido."}
+	if not outside_combat:
+		return {"success": false, "message": "Los consumibles requieren una accion de turno durante el combate."}
+	var slot := progress.inventory_slot(slot_index)
+	var definition := catalog.item(str(slot.get("item_id", "")))
+	if definition == null or not definition.is_consumable() or int(slot.get("quantity", 0)) <= 0:
+		return {"success": false, "message": "Este objeto no se puede usar."}
+	var maximums: Dictionary = calculated_stats(progress).derived
+	ensure_character_vitals(progress)
+	var restored := 0
+	if definition.consumable_effects.has("heal_hp"):
+		var old_hp := progress.current_hp
+		progress.current_hp = mini(int(maximums.max_hp), old_hp + int(definition.consumable_effects.heal_hp))
+		restored = progress.current_hp - old_hp
+	elif definition.consumable_effects.has("heal_mp"):
+		var old_mp := progress.current_mp
+		progress.current_mp = mini(int(maximums.max_mp), old_mp + int(definition.consumable_effects.heal_mp))
+		restored = progress.current_mp - old_mp
+	if restored <= 0:
+		return {"success": false, "message": "El recurso ya esta al maximo."}
+	if not progress.discard_from_slot(slot_index, 1):
+		return {"success": false, "message": "No se pudo consumir el objeto."}
+	return {"success": true, "restored": restored, "message": "%s recupera %d puntos." % [progress.display_name, restored]}
+
+func calculated_stats(progress: CharacterProgress) -> Dictionary:
+	if progress == null:
+		return {"attributes": {}, "derived": {}}
+	return StatCalculator.calculate(progress, catalog.race(progress.race_id), catalog.profession(progress.profession_id), equipment_bonuses(progress))
+
+func ensure_character_vitals(progress: CharacterProgress) -> void:
+	if progress == null:
+		return
+	var derived: Dictionary = calculated_stats(progress).derived
+	var max_hp := int(derived.get("max_hp", 1))
+	var max_mp := int(derived.get("max_mp", 0))
+	progress.current_hp = max_hp if progress.current_hp < 0 else clampi(progress.current_hp, 0, max_hp)
+	progress.current_mp = max_mp if progress.current_mp < 0 else clampi(progress.current_mp, 0, max_mp)
+
+func update_vitals_from_unit(unit: UnitData) -> void:
+	if unit == null:
+		return
+	var progress := character(unit.unit_id)
+	if progress != null:
+		progress.current_hp = clampi(unit.hp, 0, unit.max_hp)
+		progress.current_mp = clampi(unit.mp, 0, unit.max_mp)
 
 func equipped_resources(progress: CharacterProgress) -> Array[EquipmentItemData]:
 	var result: Array[EquipmentItemData] = []
@@ -343,19 +431,38 @@ func _sanitize_restored_character(
 		progress.base_attributes[attribute_id] = clampi(int(progress.base_attributes.get(attribute_id, fallback_value)), 1, 200)
 	if catalog.appearance(progress.appearance_id) == null:
 		progress.appearance_id = _initial_profession_id(progress)
-	var valid_inventory := {}
-	for item_id in progress.inventory:
-		if catalog.equipment_item(str(item_id)) != null and int(progress.inventory[item_id]) > 0:
-			valid_inventory[str(item_id)] = clampi(int(progress.inventory[item_id]), 1, 99)
-	progress.inventory = valid_inventory
+	var saved_slots := progress.inventory_slots.duplicate(true)
+	var overflow_items: Array[Dictionary] = []
+	progress.inventory_slots.clear()
+	progress.inventory.clear()
+	progress._ensure_inventory_slots()
+	for slot_index in mini(saved_slots.size(), CharacterProgress.INVENTORY_CAPACITY):
+		var slot: Dictionary = saved_slots[slot_index]
+		var definition := catalog.item(str(slot.get("item_id", "")))
+		var amount := maxi(0, int(slot.get("quantity", 0)))
+		if definition == null or amount <= 0:
+			continue
+		var placed := mini(amount, definition.stack_limit())
+		progress.inventory_slots[slot_index] = {
+			"index": slot_index, "item_id": definition.item_id, "quantity": placed,
+			"state": slot.get("state", {}).duplicate(true),
+		}
+		progress._sync_inventory_cache()
+		var overflow := amount - placed
+		if overflow > 0:
+			overflow_items.append({"definition": definition, "quantity": overflow})
+	for overflow_entry in overflow_items:
+		var overflow_definition := overflow_entry.definition as EquipmentItemData
+		progress.add_item(overflow_definition.item_id, int(overflow_entry.quantity), overflow_definition.stackable, overflow_definition.stack_limit())
 	var valid_equipped := {}
 	for slot_id in progress.equipped_items:
 		var item := catalog.equipment_item(str(progress.equipped_items[slot_id]))
 		if item != null and item.slot_key() == str(slot_id) and item.can_be_used_by(progress):
 			valid_equipped[str(slot_id)] = item.item_id
 		elif item != null:
-			progress.add_item(item.item_id)
+			progress.add_item(item.item_id, 1, item.stackable, item.stack_limit())
 	progress.equipped_items = valid_equipped
+	ensure_character_vitals(progress)
 
 func _initial_profession_id(progress: CharacterProgress) -> String:
 	return progress.profession_history[0] if not progress.profession_history.is_empty() else progress.profession_id
@@ -363,9 +470,16 @@ func _initial_profession_id(progress: CharacterProgress) -> String:
 func _grant_starter_items(progress: CharacterProgress) -> void:
 	var family := _initial_profession_id(progress)
 	progress.appearance_id = family
+	for item_id in COMMON_STARTER_ITEMS:
+		_add_definition_to_progress(progress, str(item_id), int(COMMON_STARTER_ITEMS[item_id]))
 	for item_id in STARTER_ITEMS.get(family, []):
-		if catalog.equipment_item(str(item_id)) != null:
-			progress.add_item(str(item_id))
+		_add_definition_to_progress(progress, str(item_id), 1)
+
+func _add_definition_to_progress(progress: CharacterProgress, item_id: String, quantity: int) -> int:
+	var definition := catalog.item(item_id)
+	if progress == null or definition == null:
+		return quantity
+	return progress.add_item(item_id, quantity, definition.stackable, definition.stack_limit())
 
 func _profession_is_valid_for_race(profession: ProfessionData, race: RaceData) -> bool:
 	var branch := profession
