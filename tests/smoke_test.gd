@@ -15,6 +15,7 @@ func _run() -> void:
 	_test_grass_terrain_assets()
 	_test_equipment_system()
 	_test_inventory_phase_four()
+	_test_phase_five_visual_assets()
 	_test_height_and_line_of_sight()
 	_test_status_effects()
 	_test_turn_order()
@@ -194,9 +195,16 @@ func _test_equipment_system() -> void:
 	profile.apply_to_hero(unit)
 	_expect(unit.equipment_ids.size() == 5 and unit.physical_attack == int(sword_stats.derived.physical_attack), "El combate no recibio el equipo o recalculo mal las estadisticas.")
 	var warrior_view := TacticalUnit.new()
+	get_root().add_child(warrior_view)
 	warrior_view.setup(unit, Vector2.ZERO)
 	_expect(warrior_view.mage_visual is WarriorVisual, "El guerrero no utiliza el componente WarriorVisual reutilizable.")
 	_expect(warrior_view.equipment_visual != null and warrior_view.equipment_visual.get_child_count() == 5, "El guerrero tactico no reconstruyo sus capas equipadas.")
+	warrior_view.mage_visual.play(&"attack_back")
+	warrior_view.equipment_visual.set_facing("back")
+	var combat_sword := warrior_view.equipment_visual.layer_sprites["main_hand"] as Sprite2D
+	_expect(combat_sword.z_index < 0, "La espada debe empezar detras del guerrero de espaldas.")
+	warrior_view.mage_visual.set_frame_and_progress(2, 0.0)
+	_expect(combat_sword.z_index > 0 and combat_sword.region_enabled, "El golpe no cambio el orden de la espada en combate.")
 	warrior_view.free()
 	var layers := EquipmentLayerVisual.new()
 	layers.configure(unit.body_model_id, unit.equipment_items)
@@ -312,6 +320,63 @@ func _test_inventory_phase_four() -> void:
 			"Restaurar una partida con estado de objeto inválido falló."
 		)
 
+func _test_phase_five_visual_assets() -> void:
+	var profile := CampaignProfile.new()
+	profile.initialize_new()
+	_expect(profile.catalog.equipment.size() == 33, "Fase 5 no encontro las 33 definiciones del catalogo visual.")
+	for item_id in profile.catalog.equipment:
+		var item := profile.catalog.item(str(item_id))
+		_expect(item != null and item.icon != null, "El objeto %s no tiene icono." % item_id)
+		if item == null or item.icon == null:
+			continue
+		_expect(item.icon.get_size() == Vector2(64, 64), "El icono %s no esta normalizado a 64x64." % item_id)
+		_expect(item.icon.resource_path == "res://assets/items/icons/fase5/%s.png" % item_id, "El Resource %s no apunta a su icono Fase 5 individual." % item_id)
+		var image := item.icon.get_image()
+		_expect(image.get_pixel(0, 0).a < 0.05 and image.get_pixel(63, 63).a < 0.05, "El icono %s no conserva esquinas transparentes." % item_id)
+	for class_id in ["warrior", "mage", "archer", "acolyte", "explorer"]:
+		for direction in ["front", "right", "back", "left"]:
+			var path := "res://assets/sprites/characters/%s/idle/fase5_%s_00.png" % [class_id, direction]
+			var texture := load(path) as Texture2D
+			_expect(texture != null and texture.get_size() == Vector2(96, 96), "Falta el turnaround 96x96 de %s/%s." % [class_id, direction])
+			if texture != null:
+				var used := texture.get_image().get_used_rect()
+				_expect(used.position.y >= 0 and used.end.y <= 90 and used.end.y >= 82, "Los pies de %s/%s no respetan el ancla vertical." % [class_id, direction])
+	var warrior := profile.create_character("fase5_preview", "Vista", "human", "warrior")
+	for item_id in ["iron_helmet", "iron_armor", "iron_boots", "iron_sword", "iron_shield"]:
+		profile.equip_item(warrior.character_id, item_id)
+	var preview := CharacterEquipmentPreview.new()
+	preview.custom_minimum_size = Vector2(300, 360)
+	get_root().add_child(preview)
+	preview.configure(profile, warrior)
+	preview.set_direction("back")
+	_expect(preview.current_direction == "back" and preview.character_visual.facing == "back", "La vista previa 2D no giro a espalda.")
+	_expect(preview.equipment_visual != null and preview.equipment_visual.get_child_count() == 5, "La vista previa no reconstruyo las cinco capas del guerrero.")
+	_expect(preview.equipment_visual.facing == "back", "Las capas no giraron junto con el cuerpo.")
+	preview.set_direction("left")
+	_expect(preview.character_visual.animation == &"idle_left", "La vista previa no actualizo el idle izquierdo.")
+	var counts := {"idle": 3, "walk": 6, "attack": 4, "cast": 4, "hurt": 2, "death": 4}
+	for direction in CharacterEquipmentPreview.DIRECTIONS:
+		preview.set_direction(direction)
+		for state in counts:
+			_expect(preview.play_state(state), "No se pudo reproducir %s/%s." % [state, direction])
+			var body := preview.character_visual
+			var count := body.sprite_frames.get_frame_count(body.animation)
+			_expect(count == counts[state], "Cantidad incorrecta en %s/%s." % [state, direction])
+			for index in count:
+				body.set_frame_and_progress(index, 0.0)
+				var region := (body.sprite_frames.get_frame_texture(body.animation, index) as AtlasTexture).region
+				for slot in preview.equipment_visual.layer_sprites:
+					var layer := preview.equipment_visual.layer_sprites[slot] as Sprite2D
+					_expect(layer.region_enabled and layer.region_rect == region and layer.position == Vector2.ZERO,
+						"La capa %s no comparte el fotograma %s/%s:%d." % [slot, state, direction, index])
+	for item in profile.equipped_resources(warrior):
+		_expect(profile.unequip_item(warrior.character_id, item.slot_key()), "No se pudo retirar %s." % item.item_id)
+		preview.configure(profile, warrior)
+		_expect(preview.equipment_visual.get_child_count() == 4 and not preview.equipment_visual.layer_sprites.has(item.slot_key()),
+			"Desequipar %s altero otras capas." % item.item_id)
+		_expect(profile.equip_item(warrior.character_id, item.item_id), "No se pudo volver a equipar %s." % item.item_id)
+	preview.free()
+	_expect(ResourceLoader.exists("res://scenes/debug/visual_diagnostics.tscn"), "Falta la herramienta interna de diagnostico visual.")
 func _test_height_and_line_of_sight() -> void:
 	var heights := {Vector2i(1, 0): 2, Vector2i(0, 1): 1}
 	var occupied := {Vector2i.ZERO: true}

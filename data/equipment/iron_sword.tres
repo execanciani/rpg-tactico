@@ -1,13 +1,16 @@
-[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="EquipmentItemData" load_steps=9 format=3]
 [ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_front.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/fase5/iron_sword.png" id="2"]
 [ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_preview.png" id="3"]
 [ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_front.png" id="4"]
 [ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_right.png" id="5"]
 [ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_back.png" id="6"]
 [ext_resource type="Texture2D" path="res://assets/characters/warrior/weapons/iron_sword_left.png" id="7"]
+[ext_resource type="Texture2D" path="res://assets/characters/warrior/modular/iron_sword.png" id="8"]
 [resource]
 script = ExtResource("1")
+combat_pose_atlas = ExtResource("8")
+combat_draw_order = {"attack:back:2": 2, "cast:back:2": 2, "death:right": -1}
 item_id = "iron_sword"
 display_name = "Espada de hierro"
 description = "Hoja de hierro equilibrada para el guerrero."

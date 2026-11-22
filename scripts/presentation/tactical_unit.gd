@@ -68,7 +68,7 @@ func refresh_equipment_visual() -> void:
 
 func _sync_equipment_pose() -> void:
 	if equipment_visual != null and mage_visual != null:
-		equipment_visual.sync_pose(mage_visual.animation, mage_visual.frame)
+		equipment_visual.sync_sprite(mage_visual)
 
 func animate_path(path: Array[Vector2i], grid: IsometricGrid) -> void:
 	if path.is_empty():

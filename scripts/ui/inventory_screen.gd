@@ -31,6 +31,8 @@ var character_selector: OptionButton
 var character_info: Label
 var portrait: TextureRect
 var preview_container: Control
+var preview_widget: CharacterEquipmentPreview
+var preview_direction_buttons: Dictionary = {}
 var equipment_grid: GridContainer
 var inventory_grid: GridContainer
 var capacity_label: Label
@@ -156,9 +158,29 @@ func _build_center_panel() -> Control:
 	heading.add_theme_color_override("font_color", GOLD)
 	column.add_child(heading)
 	preview_container = Control.new()
-	preview_container.custom_minimum_size = Vector2(250, 270)
+	preview_container.custom_minimum_size = Vector2(250, 205)
 	preview_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(preview_container)
+	preview_widget = CharacterEquipmentPreview.new()
+	preview_widget.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	preview_widget.direction_changed.connect(_on_preview_direction_changed)
+	preview_container.add_child(preview_widget)
+	var direction_row := HBoxContainer.new()
+	direction_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	direction_row.add_theme_constant_override("separation", 8)
+	column.add_child(direction_row)
+	var directions := {"front": "Frente", "right": "Der.", "back": "Espalda", "left": "Izq."}
+	var direction_group := ButtonGroup.new()
+	for direction: String in directions:
+		var button := Button.new()
+		button.text = directions[direction]
+		button.tooltip_text = {"right": "Derecha", "left": "Izquierda"}.get(direction, button.text)
+		button.custom_minimum_size.y = 44
+		button.toggle_mode = true
+		button.button_group = direction_group
+		button.pressed.connect(preview_widget.set_direction.bind(direction))
+		direction_row.add_child(button)
+		preview_direction_buttons[direction] = button
 	equipment_grid = GridContainer.new()
 	equipment_grid.columns = 2
 	equipment_grid.add_theme_constant_override("h_separation", 6)
@@ -262,29 +284,14 @@ func _rebuild_character_panel() -> void:
 	]
 
 func _rebuild_preview() -> void:
-	for child in preview_container.get_children():
-		child.queue_free()
 	var progress := profile.character(character_id)
-	var appearance := profile.catalog.appearance(progress.appearance_id)
-	if appearance == null:
-		return
-	_add_preview_texture(appearance.preview_base)
-	for slot_id in EquipmentLayerVisual.SLOT_ORDER:
-		var item := profile.catalog.item(str(progress.equipped_items.get(slot_id, "")))
-		if item != null:
-			_add_preview_texture(item.visual_for(progress.appearance_id, false))
+	preview_widget.configure(profile, progress)
+	_on_preview_direction_changed(preview_widget.current_direction)
 
-func _add_preview_texture(texture: Texture2D) -> void:
-	if texture == null:
-		return
-	var layer := TextureRect.new()
-	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	layer.texture = texture
-	layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	layer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	preview_container.add_child(layer)
+func _on_preview_direction_changed(direction: String) -> void:
+	var button := preview_direction_buttons.get(direction) as Button
+	if button != null:
+		button.set_pressed_no_signal(true)
 
 func _rebuild_equipment() -> void:
 	for child in equipment_grid.get_children():
@@ -295,8 +302,10 @@ func _rebuild_equipment() -> void:
 		var button := Button.new()
 		button.custom_minimum_size = Vector2(138, 45)
 		button.text = "%s\n%s" % [SLOT_NAMES.get(slot_id, slot_id), item.display_name if item != null else "—"]
-		button.icon = item.icon if item != null else null
-		button.expand_icon = true
+		var equipped_border := Color("#5fbf85") if item != null else Color("#3e5878")
+		if selected_equipment_slot == slot_id:
+			equipped_border = Color("#ffd36b")
+		_apply_slot_style(button, equipped_border, item == null)
 		button.pressed.connect(_select_equipped.bind(slot_id))
 		equipment_grid.add_child(button)
 
@@ -312,13 +321,19 @@ func _rebuild_inventory() -> void:
 		button.custom_minimum_size = Vector2(88, 76)
 		button.text = ""
 		button.tooltip_text = "Espacio %d" % (slot_index + 1)
+		var border_color := Color("#334c6d")
 		if item != null and _passes_filter(item):
 			button.icon = item.icon
 			button.expand_icon = true
 			button.text = "×%d" % int(slot.quantity) if int(slot.quantity) > 1 else ""
 			button.tooltip_text = "%s · %d/%d" % [item.display_name, int(slot.quantity), item.stack_limit()]
+			border_color = Color("#6f83a0") if item.can_be_used_by(progress) or not item.is_equipment() else Color("#a85c5c")
 		elif item != null:
 			button.modulate = Color(0.45, 0.45, 0.55, 0.65)
+			border_color = Color("#4a4f61")
+		if selected_slot == slot_index:
+			border_color = Color("#ffd36b")
+		_apply_slot_style(button, border_color, item == null)
 		button.disabled = item != null and not _passes_filter(item) and move_source < 0
 		button.pressed.connect(_select_inventory_slot.bind(slot_index))
 		inventory_grid.add_child(button)
@@ -356,11 +371,15 @@ func _select_inventory_slot(slot_index: int) -> void:
 		return
 	selected_slot = slot_index
 	selected_equipment_slot = ""
+	_rebuild_inventory()
+	_rebuild_equipment()
 	_refresh_item_details()
 
 func _select_equipped(slot_id: String) -> void:
 	selected_equipment_slot = slot_id
 	selected_slot = -1
+	_rebuild_inventory()
+	_rebuild_equipment()
 	_refresh_item_details()
 
 func _equip_selected() -> void:
@@ -430,6 +449,24 @@ func _action_button(label: String) -> Button:
 	button.custom_minimum_size = Vector2(90, 48)
 	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return button
+
+func _apply_slot_style(button: Button, border: Color, empty: bool) -> void:
+	var normal := _style(Color("#0b172b") if empty else Color("#15243a"), border, 2)
+	normal.set_corner_radius_all(5)
+	normal.set_content_margin_all(4)
+	var hover := normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color("#213957")
+	hover.border_color = border.lightened(0.18)
+	var pressed := normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color("#2a4160")
+	pressed.border_color = Color("#ffe19a")
+	var disabled := normal.duplicate() as StyleBoxFlat
+	disabled.bg_color = Color("#101727")
+	disabled.border_color = Color("#3a4050")
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("disabled", disabled)
 
 func _style(background: Color, border: Color, width: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()

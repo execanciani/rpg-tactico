@@ -535,7 +535,10 @@ func _build_equipment_screen(progress: CharacterProgress) -> void:
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 18)
 	progression_content.add_child(body)
-	body.add_child(_equipment_preview(progress))
+	var preview := _equipment_preview(progress)
+	body.add_child(preview)
+	if preview is CharacterEquipmentPreview:
+		(preview as CharacterEquipmentPreview).configure(progression_profile, progress)
 	var lists := VBoxContainer.new()
 	lists.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lists.add_theme_constant_override("separation", 6)
@@ -583,6 +586,10 @@ func _build_equipment_screen(progress: CharacterProgress) -> void:
 		lists.add_child(item_button)
 
 func _equipment_preview(progress: CharacterProgress) -> Control:
+	if progress.appearance_id == "warrior":
+		var warrior_preview := CharacterEquipmentPreview.new()
+		warrior_preview.custom_minimum_size = Vector2(256, 384)
+		return warrior_preview
 	var preview := Control.new()
 	preview.custom_minimum_size = Vector2(256, 384)
 	var appearance := progression_profile.catalog.appearance(progress.appearance_id)

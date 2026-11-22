@@ -93,6 +93,15 @@ Prototipo offline realizado con Godot 4.7.2 y GDScript. El arte actual se genera
 - La referencia de 1536x1024 se conserva en `assets/ui/inventory`. Las pociones y el cristal se extraen de ella; mineral, madera y cuero son reemplazos pixel art transparentes reproducibles mediante `tools/extract_inventory_icons.py`.
 - Una partida nueva recibe espada de hierro, armadura de cuero, casco de hierro, botas de cuero, cinco pociones de vida y tres de mana una sola vez por personaje creado.
 
+### Mejora visual de fase 5
+
+- Los 33 objetos del catálogo apuntan a iconos individuales `64×64` con alfa real en `assets/items/icons/fase5/`.
+- La pantalla de inventario distingue ranuras vacías, seleccionadas, equipadas y no utilizables mediante estilos de Godot, sin hornear marcos en los PNG.
+- `CharacterEquipmentPreview` permite girar cuerpo y capas reales entre frente, derecha, espalda e izquierda; equipar actualiza la vista inmediatamente.
+- Se añadieron turnarounds originales de las cinco clases, normalizados a `96×96` con ancla `(48, 88)`. No se usan como falsas animaciones.
+- `scenes/debug/visual_diagnostics.tscn` permite revisar clase, estado, orientación, kit y los 33 iconos.
+- El estado artístico y las limitaciones se detallan en `FASE5_AUDITORIA_GRAFICA.md`.
+
 ### Progresión
 
 - Cinco razas originales configuradas en recursos: Humanos, Elfos, Elfos oscuros, Orcos y Enanos.

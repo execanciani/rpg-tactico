@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="EquipmentItemData" load_steps=5 format=3]
 [ext_resource type="Script" path="res://scripts/domain/equipment_item_data.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/equipment/icons/archer_gloves.png" id="2"]
+[ext_resource type="Texture2D" path="res://assets/items/icons/fase5/archer_gloves.png" id="2"]
 [ext_resource type="Texture2D" path="res://assets/equipment/preview/archer_gloves.png" id="3"]
 [ext_resource type="Texture2D" path="res://assets/equipment/combat/archer_gloves.png" id="4"]
 [resource]

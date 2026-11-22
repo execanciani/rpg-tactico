@@ -32,6 +32,15 @@ const SLOT_KEYS: Array[String] = [
 @export var preview_variants: Dictionary = {}
 @export var combat_variants: Dictionary = {}
 @export var combat_offsets: Dictionary = {}
+## Uses the cells of the matching body's animation atlas.
+@export var combat_pose_atlas: Texture2D
+@export var combat_draw_order: Dictionary = {}
+
+func combat_z_index(state: String, direction: String, frame: int, fallback: int) -> int:
+	for key in ["%s:%s:%d" % [state, direction, frame], "%s:%s" % [state, direction], direction, "default"]:
+		if combat_draw_order.has(key):
+			return int(combat_draw_order[key])
+	return fallback
 
 func slot_key() -> String:
 	if slot == Slot.NONE:
