@@ -47,6 +47,10 @@ static func find_path(
 ) -> Array[Vector2i]:
 	if start == goal:
 		return []
+	# Una casilla ocupada no puede ser destino final de movimiento.
+	# La posición de origen sí puede figurar entre las ocupadas.
+	if occupied.has(goal) or blocked.has(goal) or not _inside(goal, map_size):
+		return []
 	var came_from: Dictionary = {start: start}
 	var costs: Dictionary = {start: 0}
 	var frontier: Array[Vector2i] = [start]

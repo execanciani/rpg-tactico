@@ -46,6 +46,16 @@ func _test_pathfinding() -> void:
 	_expect(reachable.has(Vector2i(0, 2)), "El pathfinder omitió una casilla alcanzable.")
 	var path := GridPathfinder.find_path(Vector2i.ZERO, Vector2i(2, 0), Vector2i(4, 4), blocked, occupied, 4)
 	_expect(path.size() == 4, "El pathfinder no rodeó correctamente el obstáculo.")
+	var occupied_goal := {Vector2i(2, 0): "other_unit"}
+	var blocked_goal_path := GridPathfinder.find_path(
+		Vector2i.ZERO, Vector2i(2, 0), Vector2i(4, 4),
+		{}, occupied_goal, 4
+	)
+	_expect(blocked_goal_path.is_empty(), "El pathfinder permitió terminar sobre otra unidad.")
+	_expect(
+		GridPathfinder.find_path(Vector2i.ZERO, Vector2i(4, 0), Vector2i(4, 4), {}, {}, 6).is_empty(),
+		"El pathfinder permitió salir del tablero."
+	)
 
 func _test_combat_rules() -> void:
 	var attacker := UnitData.new()
@@ -60,6 +70,11 @@ func _test_combat_rules() -> void:
 	defender.magical_defense = 8
 	defender.grid_position = Vector2i(1, 2)
 	_expect(CombatRules.can_basic_attack(attacker, defender), "Un ataque cuerpo a cuerpo válido fue rechazado.")
+	_expect(
+		not CombatRules.can_basic_attack(null, defender)
+		and not CombatRules.can_basic_attack(attacker, null),
+		"Un ataque con unidad inexistente debe rechazarse sin errores."
+	)
 	var damage := CombatRules.basic_attack_damage(attacker, defender)
 	_expect(damage == 9, "El cálculo de daño físico no es determinista o cambió inesperadamente.")
 	var applied := CombatRules.apply_damage(defender, damage)
@@ -272,6 +287,30 @@ func _test_inventory_phase_four() -> void:
 	var total_before := full.item_quantity("iron_sword")
 	_expect(full.add_item("leather_armor", 1) == 1 and full.item_quantity("iron_sword") == total_before, "El inventario lleno perdio objetos o acepto una ranura inexistente.")
 	_expect(not full.discard_from_slot(0, 2), "El descarte permitio una cantidad mayor a la disponible.")
+	# Los datos externos pueden venir de un JSON modificado o de una partida antigua.
+	# Un 'state' que no sea diccionario no debe producir una excepción al cargar.
+	var malformed_slot := InventorySlotData.normalized({
+		"item_id": "iron_sword", "quantity": 1, "state": "valor inválido"
+	}, 0)
+	_expect(malformed_slot.state == {}, "La normalización conservó un estado de objeto inválido.")
+	var damaged_snapshot := profile.make_snapshot()
+	var damaged_characters: Dictionary = damaged_snapshot["characters"]
+	var damaged_character: Dictionary = damaged_characters[progress.character_id]
+	var damaged_slots: Array = damaged_character["inventory_slots"]
+	var slot_with_item := -1
+	for slot_index in damaged_slots.size():
+		if not str(damaged_slots[slot_index].get("item_id", "")).is_empty():
+			slot_with_item = slot_index
+			break
+	if slot_with_item >= 0:
+		damaged_slots[slot_with_item]["state"] = "valor inválido"
+		var sanitized_profile := CampaignProfile.new()
+		sanitized_profile.restore(damaged_snapshot)
+		var sanitized_character := sanitized_profile.character(progress.character_id)
+		_expect(
+			sanitized_character != null and sanitized_character.inventory_slot(slot_with_item).get("state", {}) == {},
+			"Restaurar una partida con estado de objeto inválido falló."
+		)
 
 func _test_height_and_line_of_sight() -> void:
 	var heights := {Vector2i(1, 0): 2, Vector2i(0, 1): 1}
@@ -321,6 +360,31 @@ func _test_turn_order() -> void:
 	fast_b.hp = 0
 	manager.complete_active_turn(units)
 	_expect(not manager.order.has("fast_b"), "Una unidad derrotada permaneció en la cola de iniciativa.")
+	# Al restaurar una partida, ignorar IDs duplicados, muertos o desconocidos
+	# sin omitir unidades vivas que faltan en el snapshot.
+	var restored_manager := TurnManager.new()
+	restored_manager.restore({
+		"round": 3,
+		"order": ["fast_a", "fast_a", "deleted_unit", "fast_b"],
+		"acted_ids": ["fast_a", "fast_a", "unknown"],
+		"active_unit_id": "fast_a",
+	}, units)
+	_expect(
+		restored_manager.order == ["fast_a", "slow"]
+		and restored_manager.acted_ids == ["fast_a"]
+		and restored_manager.active_unit_id == "slow",
+		"La restauración de iniciativa no reparó IDs inválidos o duplicados."
+	)
+	restored_manager.restore({
+		"round": 7, "order": ["slow"], "acted_ids": ["slow", "fast_a"],
+		"active_unit_id": "",
+	}, units)
+	_expect(
+		restored_manager.round_number == 8
+		and restored_manager.acted_ids.is_empty()
+		and restored_manager.active_unit_id == "fast_a",
+		"Una ronda completamente actuada quedó bloqueada al restaurar."
+	)
 
 func _test_abilities_and_cooldowns() -> void:
 	var warrior_archetype := load("res://data/archetypes/hero_warrior.tres") as UnitArchetype
@@ -524,6 +588,11 @@ func _test_save_round_trip() -> void:
 	_expect(sanitized.character_id == "hero_warrior" and sanitized.profession_id == "warrior", "La carga no saneó una profesión incompatible.")
 	_expect(int(sanitized.base_attributes.STR) == 1 and sanitized.learned_ability_ids.is_empty(), "La carga aceptó atributos o habilidades manipulados.")
 	_expect(SaveSystem.decode_payload("{archivo corrupto").is_empty(), "Un archivo corrupto fue aceptado como guardado válido.")
+	for malformed_version in ['{"version": "8"}', '{"version": null}', '{"version": {}}', '{"version": 8.5}']:
+		_expect(
+			SaveSystem.decode_payload(malformed_version).is_empty(),
+			"El guardado aceptó un tipo o número de versión inválido."
+		)
 	var temporary_path := "res://tests/.temporary_save_test.json"
 	var written := SaveSystem.save_game(source, temporary_path)
 	var loaded := SaveSystem.load_game(temporary_path)

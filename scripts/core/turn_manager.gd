@@ -36,18 +36,41 @@ func snapshot() -> Dictionary:
 
 func restore(data: Dictionary, units: Array[UnitData]) -> void:
 	round_number = maxi(1, int(data.get("round", 1)))
-	order.assign(data.get("order", []))
-	acted_ids.assign(data.get("acted_ids", []))
+	# Recuperar un orden completo y válido incluso si el guardado contiene IDs
+	# repetidos, unidades desaparecidas o personajes añadidos posteriormente.
+	_rebuild_order(units)
+	var living_order := order.duplicate()
+	order.clear()
+	var saved_order: Variant = data.get("order", [])
+	if saved_order is Array:
+		for value in saved_order:
+			var unit_id := str(value)
+			if living_order.has(unit_id) and not order.has(unit_id):
+				order.append(unit_id)
+	for unit_id in living_order:
+		if not order.has(unit_id):
+			order.append(unit_id)
+	acted_ids.clear()
+	var saved_acted: Variant = data.get("acted_ids", [])
+	if saved_acted is Array:
+		for value in saved_acted:
+			var unit_id := str(value)
+			if order.has(unit_id) and not acted_ids.has(unit_id):
+				acted_ids.append(unit_id)
 	active_unit_id = str(data.get("active_unit_id", ""))
-	_remove_defeated(units)
-	if order.is_empty():
-		_rebuild_order(units)
-	if not _is_alive(active_unit_id, units):
+	if not order.has(active_unit_id) or acted_ids.has(active_unit_id):
 		active_unit_id = ""
-		for unit_id in order:
-			if not acted_ids.has(unit_id) and _is_alive(unit_id, units):
-				active_unit_id = unit_id
-				break
+	for unit_id in order:
+		if not active_unit_id.is_empty():
+			break
+		if not acted_ids.has(unit_id):
+			active_unit_id = unit_id
+	if active_unit_id.is_empty() and not order.is_empty():
+		# Un snapshot donde todos ya actuaron corresponde a la siguiente ronda.
+		round_number += 1
+		acted_ids.clear()
+		_rebuild_order(units)
+		active_unit_id = order[0] if not order.is_empty() else ""
 
 func _rebuild_order(units: Array[UnitData]) -> void:
 	var living: Array[UnitData] = units.filter(func(unit: UnitData): return unit.is_alive())

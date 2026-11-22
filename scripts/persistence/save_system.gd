@@ -71,8 +71,13 @@ static func decode_payload(text: String) -> Dictionary:
 	var parsed = parser.data
 	if not parsed is Dictionary:
 		return {}
-	var version := int(parsed.get("version", -1))
-	if version < 3 or version > SAVE_VERSION:
+	var raw_version: Variant = parsed.get("version", null)
+	# Los archivos JSON externos pueden contener cadenas, null u objetos donde
+	# debería haber una versión numérica: rechazarlos sin intentar convertirlos.
+	if not (raw_version is int or raw_version is float):
+		return {}
+	var version := int(raw_version)
+	if float(raw_version) != float(version) or version < 3 or version > SAVE_VERSION:
 		return {}
 	# Las estructuras antiguas siguen siendo normalizadas por CampaignProfile.restore().
 	# No convertir el número de versión si no se han migrado todos los campos.
